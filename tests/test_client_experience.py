@@ -3,6 +3,7 @@ import unittest
 from core.client_experience import (
     build_call_strategy,
     build_review_status_reason,
+    build_theme_aware_caution,
     is_internal_mode,
     port_side_call_classification,
     prioritize_client_results,
@@ -98,6 +99,101 @@ class ClientExperienceTests(unittest.TestCase):
         self.assertTrue(any("eligibility" in item.lower() for item in strategy["clarifications"]))
         self.assertTrue(any("consortium" in item.lower() for item in strategy["next_steps"]))
         self.assertLessEqual(len(strategy["next_steps"]), 4)
+
+    def test_green_energy_strategy_does_not_leak_recycling_language(self) -> None:
+        result = {
+            "call_title": "Clean technologies for climate action",
+            "description": (
+                "Industrial clean energy, renewable electricity, energy efficiency, storage readiness, "
+                "and emissions reduction for manufacturing sites."
+            ),
+            "theme_coherence": {
+                "shared_themes": ["port_energy_hydrogen"],
+                "coherence_level": "strong",
+                "guardrails": [],
+            },
+            "strategic_success_components": {"trl_alignment": 100.0},
+            "consortium_required": 0,
+        }
+        project_inputs = {
+            "project_desc": (
+                "A green energy project for an industrial SME using renewable electricity, energy "
+                "management, storage readiness, and industrial decarbonisation."
+            ),
+            "user_trl": None,
+            "has_consortium": False,
+        }
+
+        strategy = build_call_strategy(result, project_inputs)
+        caution = build_theme_aware_caution(result, project_inputs)
+        combined = " ".join(strategy["next_steps"] + [caution or ""]).lower()
+
+        self.assertIn("energy", combined)
+        self.assertNotIn("recycling", combined)
+        self.assertNotIn("recovery", combined)
+        self.assertNotIn("substitution", combined)
+
+    def test_security_strategy_does_not_leak_port_or_circularity_language(self) -> None:
+        result = {
+            "call_title": "Enhancing physical protection of critical infrastructures",
+            "description": (
+                "Critical infrastructure protection, cyber-physical security, threat detection, "
+                "risk assessment, and operational resilience."
+            ),
+            "theme_coherence": {
+                "shared_themes": ["security_resilience_infrastructure"],
+                "coherence_level": "strong",
+                "guardrails": [],
+            },
+            "strategic_success_components": {"trl_alignment": 100.0},
+            "consortium_required": 0,
+        }
+        project_inputs = {
+            "project_desc": (
+                "A security innovation project for critical port and energy infrastructure focused "
+                "on threat detection, cyber-physical risk, and emergency preparedness."
+            ),
+            "user_trl": None,
+            "has_consortium": False,
+        }
+
+        strategy = build_call_strategy(result, project_inputs)
+        caution = build_theme_aware_caution(result, project_inputs)
+        combined = " ".join(strategy["next_steps"] + [caution or ""]).lower()
+
+        self.assertIn("security", combined)
+        self.assertNotIn("recycling", combined)
+        self.assertNotIn("circular", combined)
+        self.assertNotIn("shore", combined)
+
+    def test_port_shore_power_strategy_can_use_port_language_when_supported(self) -> None:
+        result = {
+            "call_title": "Green, circular and resilient harbours",
+            "description": (
+                "Port authorities, harbour infrastructure, shore power, port energy systems, "
+                "electrification, and emissions reduction."
+            ),
+            "theme_coherence": {
+                "shared_themes": ["port_energy_hydrogen", "maritime_ports_logistics"],
+                "coherence_level": "strong",
+                "guardrails": [],
+            },
+            "strategic_success_components": {"trl_alignment": 100.0},
+            "consortium_required": 0,
+        }
+        project_inputs = {
+            "project_desc": (
+                "A shore power and green harbour project for port authorities and terminal operators."
+            ),
+            "user_trl": None,
+            "has_consortium": False,
+        }
+
+        strategy = build_call_strategy(result, project_inputs)
+        caution = build_theme_aware_caution(result, project_inputs)
+        combined = " ".join(strategy["next_steps"] + [caution or ""]).lower()
+
+        self.assertTrue(any(term in combined for term in ("port", "harbour", "energy")))
 
 
 if __name__ == "__main__":

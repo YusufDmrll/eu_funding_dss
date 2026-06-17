@@ -3,7 +3,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Any, Dict, List
 
-from core.client_experience import build_call_strategy, build_review_status_reason
+from core.client_experience import build_call_strategy, build_review_status_reason, build_theme_aware_caution
 from core.deadlines import (
     EXPIRED,
     INVALID_DEADLINE,
@@ -188,8 +188,9 @@ def _build_primary_caution(result: Dict[str, Any]) -> str | None:
     )
     guardrails = set((result.get("theme_coherence") or {}).get("guardrails") or [])
 
-    if "port_side_scope_mismatch" in guardrails:
-        return "Check whether the ship-side scope is relevant enough for this port-side project."
+    theme_caution = build_theme_aware_caution(result)
+    if theme_caution:
+        return theme_caution
 
     if _contains_any(result_text, ["direct recycling"]):
         return "Check whether the call expects direct-recycling performance and recovered material quality rather than broader circularity aims."
@@ -491,10 +492,10 @@ def _build_plain_text_pdf(project_inputs: Dict[str, Any], results: List[Dict[str
         trl_alignment = _format_trl_alignment(result)
         if trl_alignment:
             lines.append(f"TRL Alignment: {trl_alignment}")
-        primary_next_step = _select_primary_next_step(result)
+        primary_next_step = strategy["next_steps"][0] if strategy["next_steps"] else _select_primary_next_step(result)
         if primary_next_step:
             lines.append(f"Recommended Next Action: {_format_value(primary_next_step)}")
-        primary_caution = _build_primary_caution(result)
+        primary_caution = build_theme_aware_caution(result, project_inputs) or _build_primary_caution(result)
         if primary_caution:
             lines.append(f"Main Caution: {_format_value(primary_caution)}")
         if strategy["clarifications"]:
@@ -835,7 +836,7 @@ def _build_call_section(
             ]
         )
 
-    caution = _build_primary_caution(result)
+    caution = build_theme_aware_caution(result, project_inputs) or _build_primary_caution(result)
     if caution:
         detail_rows.append(
             [
@@ -977,7 +978,8 @@ def _build_screening_notes(results: List[Dict[str, Any]], styles: Dict[str, Any]
                 styles["BodyText"],
             )
         )
-        primary_next_step = _select_primary_next_step(result)
+        strategy = build_call_strategy(result, {})
+        primary_next_step = strategy["next_steps"][0] if strategy["next_steps"] else _select_primary_next_step(result)
         if primary_next_step:
             story.append(
                 Paragraph(
@@ -985,7 +987,7 @@ def _build_screening_notes(results: List[Dict[str, Any]], styles: Dict[str, Any]
                     styles["BodyText"],
                 )
             )
-        primary_caution = _build_primary_caution(result)
+        primary_caution = build_theme_aware_caution(result, {}) or _build_primary_caution(result)
         if primary_caution:
             story.append(
                 Paragraph(

@@ -36,6 +36,21 @@ def _contains_any(text: str, terms: List[str]) -> bool:
 def _build_theme_specific_guidance(result: Dict[str, Any]) -> str | None:
     text = _build_result_text(result)
 
+    if _contains_any(text, ["security", "critical infrastructure", "critical infrastructures", "physical protection", "cybersecurity", "resilience", "stress test", "threat"]):
+        return (
+            "Confirm whether the call is centred on critical-infrastructure protection, cyber-physical security, risk assessment, or operational resilience."
+        )
+
+    if _contains_any(text, ["renewable", "clean energy", "energy efficiency", "energy management", "clean industrial", "industrial decarbon", "emissions reduction", "electricity", "electrification", "storage", "grid"]):
+        return (
+            "Check whether the call expects energy-efficiency gains, renewable integration, storage/grid readiness, or industrial decarbonisation outcomes."
+        )
+
+    if _contains_any(text, ["maritime", "shipping", "waterborne", "vessel", "short sea", "inland waterways", "freight", "logistics"]):
+        return (
+            "Check whether the call addresses maritime logistics, green shipping, operational efficiency, harbour infrastructure, or consortium needs."
+        )
+
     if _contains_any(text, ["direct recycling"]):
         return (
             "Check whether the call expects direct recycling routes, recovered material quality, or wider circular-processing capacity."
@@ -112,11 +127,6 @@ def _build_theme_specific_guidance(result: Dict[str, Any]) -> str | None:
     ):
         return (
             "Confirm whether the call prioritises port infrastructure and energy planning or a wider transport decarbonisation scope."
-        )
-
-    if _contains_any(text, ["security", "critical infrastructure", "resilience", "anomaly"]):
-        return (
-            "Confirm whether the call is centred on monitoring and anomaly detection, protection of critical assets, or broader resilience measures."
         )
 
     return None

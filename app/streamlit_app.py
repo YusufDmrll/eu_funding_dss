@@ -12,6 +12,7 @@ import streamlit as st
 from core.client_experience import (
     build_call_strategy,
     build_review_status_reason,
+    build_theme_aware_caution,
     is_internal_mode,
     prioritize_client_results,
 )
@@ -50,6 +51,9 @@ ORG_TYPE_OPTIONS = {
     "Public body": "public body",
 }
 TRL_OPTIONS = ["Not sure"] + [str(value) for value in range(1, 10)]
+RETRIEVAL_SPINNER_TEXT = (
+    "Reviewing active calls... the first search on the hosted app may take a little longer while matching starts."
+)
 
 
 def select_display_results(results):
@@ -302,8 +306,9 @@ def build_primary_caution(result: dict) -> str | None:
     )
     guardrails = set((result.get("theme_coherence") or {}).get("guardrails") or [])
 
-    if "port_side_scope_mismatch" in guardrails:
-        return "Check whether the ship-side scope is relevant enough for this port-side project."
+    theme_caution = build_theme_aware_caution(result)
+    if theme_caution:
+        return theme_caution
 
     if contains_any(result_text, ["direct recycling"]):
         return "Check whether the call expects direct-recycling performance and recovered material quality rather than broader circularity aims."
@@ -634,10 +639,6 @@ def render_result_card(
         "This result was matched based on limited textual overlap and should be reviewed manually."
     )
     guidance_items = result.get("next_step_guidance") or []
-    primary_next_step = select_primary_next_step(guidance_items)
-    primary_caution = build_primary_caution(result)
-    if "port_side_scope_mismatch" in set((result.get("theme_coherence") or {}).get("guardrails") or []):
-        primary_next_step = "Confirm whether ship-side technology is genuinely part of the port project scope before shortlisting."
     source_url = result.get("source_url")
     confidence_label = result.get("match_confidence_label")
     status_label = result.get("client_review_status") or determine_client_review_status(
@@ -654,6 +655,8 @@ def render_result_card(
         input_quality=input_quality,
     )
     strategy = build_call_strategy(result, project_inputs)
+    primary_next_step = strategy["next_steps"][0] if strategy["next_steps"] else select_primary_next_step(guidance_items)
+    primary_caution = build_theme_aware_caution(result, project_inputs) or build_primary_caution(result)
     call_reference_text = f"Call {str(result.get('call_id') or '').strip()}"
     deadline_status_label, deadline_status_detail, deadline_needs_attention = format_deadline_status(result)
     if deadline_needs_attention:
@@ -1481,7 +1484,7 @@ if run_btn:
                 "has_consortium": has_consortium,
                 "partner_count": int(partner_count) if partner_count is not None else None,
             }
-            with st.spinner("Reviewing active calls..."):
+            with st.spinner(RETRIEVAL_SPINNER_TEXT):
                 candidate_execution = execute_retrieval(
                     **retrieval_inputs,
                     sort_by="strategic_success_index",
@@ -1535,7 +1538,7 @@ if "last_retrieval_inputs" in st.session_state:
 
     results_execution = st.session_state.get("last_results_execution")
     if results_execution is None:
-        with st.spinner("Reviewing active calls..."):
+        with st.spinner(RETRIEVAL_SPINNER_TEXT):
             results_execution = execute_retrieval(
                 **st.session_state["last_retrieval_inputs"],
                 sort_by="strategic_success_index",

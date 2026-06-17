@@ -47,6 +47,91 @@ SHIP_SIDE_CALL_TERMS = (
     "battery-electric operation of ferries",
 )
 
+CRITICAL_CIRCULARITY_TERMS = (
+    "critical raw material",
+    "critical raw materials",
+    "strategic raw material",
+    "raw materials",
+    "rare earth",
+    "battery materials",
+    "battery-grade",
+    "battery grade",
+    "recycling",
+    "direct recycling",
+    "secondary raw material",
+    "secondary raw materials",
+    "circularity",
+    "circular economy",
+    "materials recovery",
+    "material recovery",
+    "recovery",
+    "refining",
+    "processing",
+    "substitution",
+    "dependency",
+    "dependencies",
+)
+
+GREEN_ENERGY_TERMS = (
+    "renewable",
+    "renewable energy",
+    "clean energy",
+    "energy efficiency",
+    "energy management",
+    "energy transition",
+    "clean industrial",
+    "industrial decarbon",
+    "decarbonisation",
+    "decarbonization",
+    "emissions reduction",
+    "electricity",
+    "electrification",
+    "storage",
+    "grid",
+    "sustainability",
+    "climate action",
+)
+
+SECURITY_TERMS = (
+    "security",
+    "cybersecurity",
+    "critical infrastructure",
+    "critical infrastructures",
+    "physical protection",
+    "infrastructure protection",
+    "threat",
+    "threats",
+    "risk assessment",
+    "risk detection",
+    "emergency preparedness",
+    "crisis response",
+    "resilience",
+    "stress tests",
+    "stress test",
+    "hybrid scenarios",
+    "critical entities",
+)
+
+MARITIME_TERMS = (
+    "maritime",
+    "shipping",
+    "ship",
+    "ships",
+    "vessel",
+    "vessels",
+    "waterborne",
+    "port",
+    "ports",
+    "harbour",
+    "harbours",
+    "terminal",
+    "terminals",
+    "freight",
+    "logistics",
+    "short sea",
+    "inland waterways",
+)
+
 THEME_LABELS = {
     "critical_materials_circularity": "critical materials and circularity",
     "port_energy_hydrogen": "port energy and clean-energy transition",
@@ -90,6 +175,19 @@ def _call_scope_text(result: Dict[str, Any]) -> str:
     )
 
 
+def _project_scope_text(project_inputs: Dict[str, Any] | None) -> str:
+    if not project_inputs:
+        return ""
+    return " ".join(
+        str(project_inputs.get(field) or "")
+        for field in ("project_desc", "project_title", "user_country", "user_org_type")
+    )
+
+
+def _supports_terms(text: str, terms: Iterable[str]) -> bool:
+    return _contains_any(text, terms)
+
+
 def is_port_side_project(project_text: str) -> bool:
     return _contains_any(project_text, PORT_SIDE_PROJECT_TERMS)
 
@@ -111,6 +209,120 @@ def _primary_theme_for_copy(shared_themes: Iterable[str]) -> str | None:
         if theme in shared_set:
             return theme
     return next(iter(shared_set), None)
+
+
+def _supported_project_call_theme(
+    result: Dict[str, Any],
+    project_inputs: Dict[str, Any] | None,
+) -> str | None:
+    """Choose a wording theme only when the call and project both support it."""
+    call_text = _call_scope_text(result)
+    project_text = _project_scope_text(project_inputs)
+    shared_themes = set((result.get("theme_coherence") or {}).get("shared_themes") or [])
+
+    project_has_green = _supports_terms(project_text, GREEN_ENERGY_TERMS)
+    call_has_green = _supports_terms(call_text, GREEN_ENERGY_TERMS)
+    project_has_security = _supports_terms(project_text, SECURITY_TERMS)
+    call_has_security = _supports_terms(call_text, SECURITY_TERMS)
+    project_has_maritime = _supports_terms(project_text, MARITIME_TERMS)
+    call_has_maritime = _supports_terms(call_text, MARITIME_TERMS)
+    project_has_critical = _supports_terms(project_text, CRITICAL_CIRCULARITY_TERMS)
+    call_has_critical = _supports_terms(call_text, CRITICAL_CIRCULARITY_TERMS)
+
+    if (project_has_security and call_has_security) or "security_resilience_infrastructure" in shared_themes:
+        return "security"
+    if (
+        project_has_maritime
+        and call_has_maritime
+        and (
+            is_port_side_project(project_text)
+            or port_side_call_classification(result) == "direct_port_side"
+        )
+    ):
+        return "maritime"
+    if (project_has_green and call_has_green) or "port_energy_hydrogen" in shared_themes:
+        return "green_energy"
+    if (project_has_maritime and call_has_maritime) or "maritime_ports_logistics" in shared_themes:
+        return "maritime"
+    if (project_has_critical and call_has_critical) or "critical_materials_circularity" in shared_themes:
+        return "critical_materials"
+    return None
+
+
+def build_theme_aware_next_action(
+    result: Dict[str, Any],
+    project_inputs: Dict[str, Any] | None,
+) -> str | None:
+    guardrails = set((result.get("theme_coherence") or {}).get("guardrails") or [])
+    call_text = _call_scope_text(result)
+    theme = _supported_project_call_theme(result, project_inputs)
+
+    if "port_side_scope_mismatch" in guardrails:
+        return "Confirm whether ship-side technology is genuinely part of the port project scope before shortlisting."
+    if "passenger_transport_drift" in guardrails:
+        return "Validate whether the call addresses freight, logistics, or port operations rather than passenger transport."
+    if "hydrogen_scope_drift" in guardrails:
+        return "Confirm that hydrogen infrastructure is explicit in the official call text before treating this as a direct energy match."
+    if "no_meaningful_theme_overlap" in guardrails or "partial_theme_overlap" in guardrails:
+        return "Validate the project-call scope against the official text before treating this as more than a reviewable lead."
+
+    if theme == "security":
+        return "Check whether the call focuses on infrastructure protection, cyber-physical security, emergency preparedness, or operational resilience."
+    if theme == "green_energy":
+        return "Check whether the call expects energy-efficiency gains, renewable integration, storage/grid readiness, or industrial decarbonisation outcomes."
+    if theme == "maritime":
+        if _supports_terms(call_text, PORT_SIDE_CALL_TERMS):
+            return "Check whether the call is centred on port operations, harbour infrastructure, or wider maritime network coordination."
+        return "Check whether the call addresses maritime logistics, green shipping, operational efficiency, or consortium needs."
+    if theme == "critical_materials":
+        if _supports_terms(call_text, ("battery", "battery materials", "battery-grade", "battery grade")):
+            return "Check whether the call prioritises recovered battery-grade materials, recycling performance, or wider battery value-chain capacity."
+        return "Confirm whether the call is centred on recycling, recovery, substitution, processing, or raw-material value-chain capacity."
+
+    return None
+
+
+def build_theme_aware_caution(
+    result: Dict[str, Any],
+    project_inputs: Dict[str, Any] | None = None,
+) -> str | None:
+    guardrails = set((result.get("theme_coherence") or {}).get("guardrails") or [])
+    call_text = _call_scope_text(result)
+    theme = _supported_project_call_theme(result, project_inputs)
+
+    if "port_side_scope_mismatch" in guardrails:
+        return "Check whether the ship-side scope is relevant enough for this port-side project."
+    if "passenger_transport_drift" in guardrails:
+        return "Check whether the call is passenger-transport focused rather than freight, logistics, or port operations."
+    if "hydrogen_scope_drift" in guardrails:
+        return "Check whether the clean-energy scope is truly hydrogen-related rather than an adjacent CCUS, nuclear, or shipping topic."
+    if "no_meaningful_theme_overlap" in guardrails:
+        return "Only adjacent overlap is visible, so validate scope carefully before shortlisting."
+
+    if theme == "security":
+        return "Check whether the call matches the specific assets, threat model, and public-private response context of the project."
+    if theme == "green_energy":
+        return "Check whether the call expects measurable energy, emissions, storage, or industrial-decarbonisation outcomes."
+    if theme == "maritime":
+        if _supports_terms(call_text, SHIP_SIDE_CALL_TERMS) and _supports_terms(_project_scope_text(project_inputs), PORT_SIDE_PROJECT_TERMS):
+            return "Check whether the ship-side scope is relevant enough for this port-side project."
+        if port_side_call_classification(result) == "direct_port_side":
+            return "Check whether the call is focused on harbour infrastructure, terminal systems, or wider port-network coordination."
+        return "Check whether the call is focused on maritime operations, harbour infrastructure, or logistics rather than an adjacent transport topic."
+    if theme == "critical_materials":
+        if _supports_terms(call_text, ("direct recycling",)):
+            return "Check whether the call expects direct-recycling performance and recovered material quality rather than broader circularity aims."
+        if _supports_terms(call_text, ("battery", "battery materials", "battery-grade", "battery grade")) and _supports_terms(
+            call_text, ("recycling", "direct recycling", "recovery")
+        ):
+            return "Check whether the call is focused on recovered battery-grade materials rather than broader battery value-chain activity."
+        if _supports_terms(call_text, ("substitution", "dependency", "dependencies")):
+            return "Check whether the call is framed around dependency reduction or substitution rather than recovery activity."
+        if _supports_terms(call_text, ("secondary raw materials", "recycling", "recovery")):
+            return "Check whether the call expects recovery scale and processing depth rather than a broader circular-economy framing."
+        return "Check whether the call is aimed at materials processing, recovery, substitution, or value-chain capacity."
+
+    return None
 
 
 def prioritize_client_results(
@@ -273,8 +485,9 @@ def build_call_strategy(
             if len(clarifications) >= 2:
                 break
 
-    if "port_side_scope_mismatch" in guardrails:
-        next_steps.append("Confirm whether ship-side technology is genuinely part of the port project scope.")
+    theme_next_action = build_theme_aware_next_action(result, project_inputs)
+    if theme_next_action:
+        next_steps.append(theme_next_action)
     next_steps.append("Check applicant eligibility and participation conditions in the official call documents.")
     next_steps.append("Map the project objectives and impact to the call's expected outcomes.")
 
