@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+scikit-learn
+pyyaml
+sqlite-utils
+reportlab
+requests
+torch
+sentence-transformers

@@ -1,0 +1,55 @@
+# Local Python environments
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.streamlit/cache/
+
+# Local secrets / deployment-only private settings
+.env
+*.env
+.streamlit/secrets.toml
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+tmp/
+
+# Temporary PDF exports
+exports/
+exports/*.pdf
+*_screening_summary.pdf
+eu_funding_screening_summary.pdf
+
+# Local client/reference documents not required for Streamlit runtime
+/*.pdf
+/*.docx
+
+# Dataset staging, review, and backup artifacts not required at runtime
+data/backups/
+data/imports/backups/
+data/imports/calls_seed_clean_backup_before_reviewed.csv
+data/imports/calls_seed_clean_reviewed.csv
+data/imports/eu_calls_raw_staging.csv
+data/imports/eu_calls_recommended_expansion.csv
+data/imports/eu_calls_promotion_candidates.csv
+data/imports/eu_calls_promotion_candidates_enriched.csv
+data/imports/quarantined_malformed_rows.csv
+data/evaluation_outputs/
+
+# Operating system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,135 @@
+[
+  {
+    "eval_id": "EVAL-01",
+    "theme": "green_energy",
+    "project_title": "AI-supported energy efficiency platform for manufacturing SMEs",
+    "project_description": "We are developing a digital decision-support platform that helps manufacturing SMEs reduce energy consumption through sensor-based monitoring, predictive analytics, and operational recommendations. The project aims to improve industrial energy efficiency, reduce emissions, and support greener production processes across multiple EU regions.",
+    "expected_fit_notes": "Should align with calls related to industrial energy efficiency, low-emission manufacturing, sustainability, digital innovation, and SME support.",
+    "must_have_signals": [
+      "energy efficiency",
+      "manufacturing or industry",
+      "emissions reduction",
+      "digital platform or analytics",
+      "SME relevance"
+    ],
+    "likely_false_positive_patterns": [
+      "generic ICT or software calls with no sustainability relevance",
+      "broad SME digitalization calls without energy or industrial focus",
+      "consumer energy apps or household sustainability topics"
+    ]
+  },
+  {
+    "eval_id": "EVAL-02",
+    "theme": "critical_materials",
+    "project_title": "Circular recovery of critical raw materials from industrial waste",
+    "project_description": "Our project focuses on recovering critical raw materials from industrial and electronic waste streams through a scalable circular processing method. We want to combine material traceability, resource efficiency, and pilot-scale validation to reduce dependency on imported raw materials and strengthen European industrial resilience.",
+    "expected_fit_notes": "Should align with critical raw materials, circular economy, recycling, strategic autonomy, industrial resilience, and pilot validation.",
+    "must_have_signals": [
+      "critical raw materials",
+      "recycling or recovery",
+      "industrial waste or electronic waste",
+      "circularity",
+      "pilot validation"
+    ],
+    "likely_false_positive_patterns": [
+      "generic sustainability calls with no materials focus",
+      "waste management topics unrelated to raw material recovery",
+      "environmental awareness calls without industrial innovation content"
+    ]
+  },
+  {
+    "eval_id": "EVAL-03",
+    "theme": "maritime",
+    "project_title": "Port optimization using AI for vessel and logistics efficiency",
+    "project_description": "We are designing an AI-based optimization system for port operations that improves vessel scheduling, cargo flow coordination, and energy-efficient logistics planning. The solution is intended for large port ecosystems and supports sustainable maritime innovation, operational efficiency, and lower environmental impact.",
+    "expected_fit_notes": "Should align with maritime logistics, ports, sustainable transport, operational optimization, and digital innovation in infrastructure.",
+    "must_have_signals": [
+      "port or maritime",
+      "logistics optimization",
+      "vessel operations",
+      "efficiency",
+      "sustainability or lower environmental impact"
+    ],
+    "likely_false_positive_patterns": [
+      "general supply chain software calls with no maritime relevance",
+      "road transport optimization calls",
+      "smart city logistics calls without port or shipping context"
+    ]
+  },
+  {
+    "eval_id": "EVAL-04",
+    "theme": "security",
+    "project_title": "Smart port security and anomaly detection platform",
+    "project_description": "This project develops a security platform for critical port infrastructure using sensor fusion, anomaly detection, and real-time monitoring. The goal is to improve threat detection, operational awareness, and resilience against physical and digital disruption in complex logistics environments.",
+    "expected_fit_notes": "Should align with security, critical infrastructure protection, resilience, anomaly detection, threat monitoring, and dual physical-digital protection.",
+    "must_have_signals": [
+      "security",
+      "critical infrastructure",
+      "threat or anomaly detection",
+      "monitoring",
+      "resilience"
+    ],
+    "likely_false_positive_patterns": [
+      "generic cybersecurity awareness calls",
+      "broad smart monitoring calls with no security relevance",
+      "logistics optimization calls without resilience or threat focus"
+    ]
+  },
+  {
+    "eval_id": "EVAL-05",
+    "theme": "advanced_manufacturing",
+    "project_title": "Pilot line for low-emission industrial process innovation",
+    "project_description": "We want to validate a pilot-scale industrial process that reduces emissions and resource consumption in advanced manufacturing. The project includes prototype refinement, pilot testing, and cross-border industrial demonstration with research and industry partners.",
+    "expected_fit_notes": "Should align with pilot line activity, industrial demonstration, advanced manufacturing, low-emission processes, and collaborative industrial innovation.",
+    "must_have_signals": [
+      "pilot or pilot-scale",
+      "industrial process",
+      "advanced manufacturing",
+      "demonstration",
+      "emissions or resource efficiency"
+    ],
+    "likely_false_positive_patterns": [
+      "early-stage research calls with no demo or pilot orientation",
+      "general sustainability calls with no manufacturing relevance",
+      "academic materials science topics without industrial validation"
+    ]
+  },
+  {
+    "eval_id": "EVAL-06",
+    "theme": "green_energy_maritime",
+    "project_title": "Shore power and energy management optimization for ports",
+    "project_description": "We are developing a decision-support system for ports to optimize shore power usage, electricity demand balancing, and energy planning for vessel berthing operations. The project aims to reduce port-related emissions while improving infrastructure efficiency and operational planning.",
+    "expected_fit_notes": "Should align with both maritime and green energy themes, especially port decarbonization, infrastructure efficiency, and operational sustainability.",
+    "must_have_signals": [
+      "ports",
+      "shore power or electrification",
+      "energy planning",
+      "emissions reduction",
+      "operational efficiency"
+    ],
+    "likely_false_positive_patterns": [
+      "generic grid optimization calls with no port relevance",
+      "maritime logistics calls with no energy angle",
+      "broad climate calls with no infrastructure or operational component"
+    ]
+  },
+  {
+    "eval_id": "EVAL-07",
+    "theme": "borderline_meaningful",
+    "project_title": "Regional innovation collaboration platform",
+    "project_description": "We are exploring a digital collaboration platform that helps regional innovation actors exchange project opportunities, connect around shared priorities, and structure innovation initiatives more effectively. The concept is still broad, but the intended use is around innovation support, ecosystem coordination, and funding readiness.",
+    "expected_fit_notes": "This should test whether the system remains useful but cautious when the input is meaningful yet strategically broad and under-specified.",
+    "must_have_signals": [
+      "innovation ecosystem",
+      "collaboration platform",
+      "coordination",
+      "funding readiness",
+      "regional actors"
+    ],
+    "likely_false_positive_patterns": [
+      "any broad digitalization call",
+      "generic SME platform calls",
+      "unrelated collaboration tools with no innovation-policy or funding relevance"
+    ]
+  }
+]

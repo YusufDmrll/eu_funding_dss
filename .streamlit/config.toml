@@ -1,0 +1,5 @@
+[server]
+# Disable Streamlit's file watcher for this app. The semantic stack uses
+# torch/transformers modules, and file watching can inspect those modules
+# unnecessarily in some environments.
+fileWatcherType = "none"
