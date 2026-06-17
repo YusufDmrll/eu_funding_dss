@@ -1,4 +1,5 @@
 import html
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -211,18 +212,54 @@ def contains_any(text: str, terms: list[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def contains_whole_term(text: str, terms: list[str]) -> bool:
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text) for term in terms)
+
+
 def detect_result_theme(result: dict) -> str:
     text = build_result_text(result)
 
     if contains_any(text, ["critical raw materials", "raw materials", "rare earth", "recycling"]):
         return "Critical materials and recycling"
 
-    if contains_any(text, ["shore", "berth", "port", "ports"]) and contains_any(
+    if contains_whole_term(text, ["shore", "berth", "port", "ports", "harbour", "harbours"]) and contains_any(
         text, ["energy", "electrification", "emissions", "electricity"]
     ):
         return "Port energy and maritime infrastructure"
 
-    if contains_any(text, ["security", "critical infrastructure", "resilience", "anomaly"]):
+    if contains_any(
+        text,
+        [
+            "wind",
+            "wind energy",
+            "solar",
+            "photovoltaic",
+            "renewable",
+            "clean energy",
+            "clean technologies",
+            "energy efficiency",
+            "energy transition",
+            "industrial decarbon",
+            "emissions reduction",
+            "storage",
+            "grid",
+        ],
+    ):
+        return "Green energy and industrial decarbonisation"
+
+    if contains_any(
+        text,
+        [
+            "security",
+            "critical infrastructure",
+            "cybersecurity",
+            "physical protection",
+            "threat",
+            "risk assessment",
+            "emergency preparedness",
+            "anomaly detection",
+        ],
+    ):
         return "Infrastructure security and resilience"
 
     if contains_any(text, ["shipping", "ship", "waterborne", "maritime"]):
@@ -237,6 +274,8 @@ def build_theme_tag(result: dict) -> str:
         return "Critical materials"
     if theme == "Port energy and maritime infrastructure":
         return "Port energy"
+    if theme == "Green energy and industrial decarbonisation":
+        return "Green energy"
     if theme == "Infrastructure security and resilience":
         return "Infrastructure security"
     if theme == "Maritime operations and shipping innovation":
@@ -426,17 +465,23 @@ def build_shortlist_reason(results: list[dict]) -> str:
     if top_theme == "Port energy and maritime infrastructure":
         return "The clearest options connect port or maritime activity with energy use, electrification, or emissions reduction."
 
+    if top_theme == "Green energy and industrial decarbonisation":
+        return "The clearest options connect clean-energy innovation with emissions reduction, storage, grid readiness, or industrial decarbonisation."
+
     if top_theme == "Infrastructure security and resilience":
         return "The clearest options focus on infrastructure protection, monitoring, and operational resilience."
 
     return results[0].get("match_explanation") or "The shortlist is based on the closest current thematic overlap."
 
 
-def build_shortlist_caution(results: list[dict]) -> str:
+def build_shortlist_caution(results: list[dict], project_inputs: dict | None = None) -> str:
     if not results:
         return "Manual review is still required."
 
-    cautions = [build_primary_caution(result) for result in results]
+    cautions = [
+        build_theme_aware_caution(result, project_inputs) or build_primary_caution(result)
+        for result in results
+    ]
     cautions = [caution for caution in cautions if caution]
     if not cautions:
         return "Manual review is still required before shortlisting any call."
@@ -494,6 +539,9 @@ def build_summary_lead(results: list[dict]) -> str:
 
     if theme == "Port energy and maritime infrastructure":
         return "The main opportunity area is port energy, shore-side infrastructure, and related emissions reduction."
+
+    if theme == "Green energy and industrial decarbonisation":
+        return "The main opportunity area is clean-energy innovation and industrial decarbonisation."
 
     if theme == "Infrastructure security and resilience":
         return "The main opportunity area is infrastructure security, resilience, and operational monitoring."
@@ -600,7 +648,7 @@ def render_score_cluster(result: dict) -> None:
     st.markdown(build_score_cluster_markup(result), unsafe_allow_html=True)
 
 
-def render_shortlist_summary(results: list[dict]) -> None:
+def render_shortlist_summary(results: list[dict], project_inputs: dict | None = None) -> None:
     opportunity_area = detect_result_theme(results[0])
     count_text = build_shortlist_count_text(results)
     summary_markup = f"""
@@ -619,7 +667,7 @@ def render_shortlist_summary(results: list[dict]) -> None:
             </div>
             <div class='ui-summary-cell'>
                 <div class='ui-label'>Main caution</div>
-                <div class='ui-summary-body'>{_escape_text(build_shortlist_caution(results))}</div>
+                <div class='ui-summary-body'>{_escape_text(build_shortlist_caution(results, project_inputs))}</div>
             </div>
         </div>
     </div>
@@ -1595,7 +1643,7 @@ if "last_retrieval_inputs" in st.session_state:
             "No sufficiently reliable funding matches are available for summary output. Please refine the project description and review manually."
         )
     else:
-        render_shortlist_summary(display_results)
+        render_shortlist_summary(display_results, project_inputs)
 
         action_cols = st.columns([1.0, 2.2], gap="medium")
         with action_cols[0]:

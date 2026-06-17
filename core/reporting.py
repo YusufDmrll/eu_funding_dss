@@ -1,4 +1,5 @@
 import html
+import re
 from datetime import datetime
 from io import BytesIO
 from typing import Any, Dict, List
@@ -322,18 +323,54 @@ def _contains_any(text: str, terms: List[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _contains_whole_term(text: str, terms: List[str]) -> bool:
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text) for term in terms)
+
+
 def _detect_result_theme(result: Dict[str, Any]) -> str:
     text = _build_result_text(result)
 
     if _contains_any(text, ["critical raw materials", "raw materials", "rare earth", "recycling"]):
         return "Critical raw materials and recycling"
 
-    if _contains_any(text, ["shore", "berth", "port", "ports"]) and _contains_any(
+    if _contains_whole_term(text, ["shore", "berth", "port", "ports", "harbour", "harbours"]) and _contains_any(
         text, ["energy", "electrification", "emissions", "electricity"]
     ):
         return "Port energy systems and maritime infrastructure"
 
-    if _contains_any(text, ["security", "critical infrastructure", "resilience", "anomaly"]):
+    if _contains_any(
+        text,
+        [
+            "wind",
+            "wind energy",
+            "solar",
+            "photovoltaic",
+            "renewable",
+            "clean energy",
+            "clean technologies",
+            "energy efficiency",
+            "energy transition",
+            "industrial decarbon",
+            "emissions reduction",
+            "storage",
+            "grid",
+        ],
+    ):
+        return "Green energy and industrial decarbonisation"
+
+    if _contains_any(
+        text,
+        [
+            "security",
+            "critical infrastructure",
+            "cybersecurity",
+            "physical protection",
+            "threat",
+            "risk assessment",
+            "emergency preparedness",
+            "anomaly detection",
+        ],
+    ):
         return "Infrastructure security and resilience"
 
     if _contains_any(text, ["shipping", "ship", "waterborne", "maritime"]):
@@ -354,17 +391,26 @@ def _build_shortlist_reason(results: List[Dict[str, Any]]) -> str:
     if top_theme == "Port energy systems and maritime infrastructure":
         return "The clearest options connect port or maritime activity with energy use, electrification, or emissions reduction."
 
+    if top_theme == "Green energy and industrial decarbonisation":
+        return "The clearest options connect clean-energy innovation with emissions reduction, storage, grid readiness, or industrial decarbonisation."
+
     if top_theme == "Infrastructure security and resilience":
         return "The clearest options focus on infrastructure protection, monitoring, and operational resilience."
 
     return results[0].get("match_explanation") or "The shortlist is based on the closest current thematic overlap."
 
 
-def _build_shortlist_caution(results: List[Dict[str, Any]]) -> str:
+def _build_shortlist_caution(
+    results: List[Dict[str, Any]],
+    project_inputs: Dict[str, Any] | None = None,
+) -> str:
     if not results:
         return "Manual review is still required."
 
-    cautions = [_build_primary_caution(result) for result in results]
+    cautions = [
+        build_theme_aware_caution(result, project_inputs) or _build_primary_caution(result)
+        for result in results
+    ]
     cautions = [caution for caution in cautions if caution]
     if not cautions:
         return "Manual review is still required before shortlisting any call."
@@ -427,6 +473,9 @@ def _build_summary_lead(results: List[Dict[str, Any]]) -> str:
 
     if theme == "Port energy systems and maritime infrastructure":
         return "The clearest current opportunity area is port energy, shore-side infrastructure, and related emissions reduction."
+
+    if theme == "Green energy and industrial decarbonisation":
+        return "The clearest current opportunity area is clean-energy innovation and industrial decarbonisation."
 
     if theme == "Infrastructure security and resilience":
         return "The clearest current opportunity area is infrastructure security, resilience, and operational monitoring."
@@ -1025,7 +1074,7 @@ def _build_screening_readout(
         ),
         Spacer(1, 4),
         Paragraph(
-            f"<b>Main caution:</b> {_safe_markup(_build_shortlist_caution(results))}",
+            f"<b>Main caution:</b> {_safe_markup(_build_shortlist_caution(results, project_inputs))}",
             report_styles["body"],
         ),
         Spacer(1, 12),
