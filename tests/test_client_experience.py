@@ -133,6 +133,37 @@ class ClientExperienceTests(unittest.TestCase):
         self.assertNotIn("recovery", combined)
         self.assertNotIn("substitution", combined)
 
+    def test_wind_energy_strategy_uses_energy_language(self) -> None:
+        result = {
+            "call_title": "Innovative technologies and solutions to improve wind energy systems",
+            "description": (
+                "Wind energy systems, clean technologies, climate action, grid integration, "
+                "storage readiness, and emissions reduction."
+            ),
+            "theme_coherence": {
+                "shared_themes": ["sme_startup_ecosystem"],
+                "coherence_level": "moderate",
+                "guardrails": [],
+            },
+            "strategic_success_components": {"trl_alignment": 100.0},
+            "consortium_required": 0,
+        }
+        project_inputs = {
+            "project_desc": (
+                "A green energy project for an industrial SME using renewable integration, "
+                "storage readiness, energy efficiency, and industrial decarbonisation."
+            ),
+            "user_trl": None,
+            "has_consortium": False,
+        }
+
+        strategy = build_call_strategy(result, project_inputs)
+        combined = " ".join(strategy["next_steps"]).lower()
+
+        self.assertIn("energy", combined)
+        self.assertIn("decarbonisation", combined)
+        self.assertNotIn("critical-infrastructure protection", combined)
+
     def test_security_strategy_does_not_leak_port_or_circularity_language(self) -> None:
         result = {
             "call_title": "Enhancing physical protection of critical infrastructures",

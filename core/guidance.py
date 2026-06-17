@@ -36,12 +36,12 @@ def _contains_any(text: str, terms: List[str]) -> bool:
 def _build_theme_specific_guidance(result: Dict[str, Any]) -> str | None:
     text = _build_result_text(result)
 
-    if _contains_any(text, ["security", "critical infrastructure", "critical infrastructures", "physical protection", "cybersecurity", "resilience", "stress test", "threat"]):
+    if _contains_any(text, ["security", "critical infrastructure", "critical infrastructures", "physical protection", "cybersecurity", "stress test", "threat"]):
         return (
             "Confirm whether the call is centred on critical-infrastructure protection, cyber-physical security, risk assessment, or operational resilience."
         )
 
-    if _contains_any(text, ["renewable", "clean energy", "energy efficiency", "energy management", "clean industrial", "industrial decarbon", "emissions reduction", "electricity", "electrification", "storage", "grid"]):
+    if _contains_any(text, ["wind", "wind energy", "solar", "photovoltaic", "renewable", "clean energy", "clean technologies", "clean technology", "energy efficiency", "energy management", "energy transition", "set plan", "clean industrial", "industrial decarbon", "emissions reduction", "climate", "electricity", "electrification", "storage", "grid"]):
         return (
             "Check whether the call expects energy-efficiency gains, renewable integration, storage/grid readiness, or industrial decarbonisation outcomes."
         )

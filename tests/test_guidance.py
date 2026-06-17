@@ -98,6 +98,32 @@ class GuidanceTests(unittest.TestCase):
         self.assertNotIn("recycling", text)
         self.assertNotIn("substitution", text)
 
+    def test_wind_energy_guidance_does_not_fall_into_security_language(self) -> None:
+        guidance = build_next_step_guidance(
+            {
+                "call_title": "Innovative technologies and solutions to improve wind energy systems",
+                "description": (
+                    "Wind energy systems, clean technologies, climate action, grid integration, "
+                    "storage readiness, emissions reduction, and operational resilience."
+                ),
+                "eligibility_status": "Eligible",
+                "eligibility_warnings": [],
+                "eligibility_reasons": [],
+                "data_quality_flags": [],
+                "match_confidence_label": "Reliable",
+                "consortium_required": 0,
+                "deadline_utc": "2030-12-01T15:00:00Z",
+                "strategic_success_components": {"trl_alignment": 100.0},
+            },
+            user_trl=None,
+            has_consortium=False,
+            partner_count=None,
+        )
+
+        text = " ".join(guidance).lower()
+        self.assertIn("energy", text)
+        self.assertNotIn("critical-infrastructure protection", text)
+
     def test_security_guidance_precedes_port_or_infrastructure_noise(self) -> None:
         guidance = build_next_step_guidance(
             {
