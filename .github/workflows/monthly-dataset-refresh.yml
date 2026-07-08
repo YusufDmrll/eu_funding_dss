@@ -1,0 +1,135 @@
+name: EU Call Library Refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_active:
+        description: "Target number of active/upcoming calls to keep in the working library"
+        required: false
+        default: "300"
+      qa_level:
+        description: "QA level to run after refresh"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - quick
+          - full
+  schedule:
+    - cron: "0 7 1 * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-call-library:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ACTIVE: ${{ github.event.inputs.target_active || '300' }}
+      QA_LEVEL: ${{ github.event.inputs.qa_level || 'full' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Snapshot current active library
+        run: |
+          mkdir -p data/evaluation_outputs
+          cp data/imports/calls_seed_clean.csv data/evaluation_outputs/calls_seed_clean_before_refresh.csv
+
+      - name: Run safe one-command EU call refresh
+        run: |
+          python scripts/refresh_call_library.py \
+            --target-active "$TARGET_ACTIVE" \
+            --limit 0 \
+            --page-size 100 \
+            --max-pages 30 \
+            --theme-threshold 2 \
+            --max-candidates 260 \
+            --minimum-score 40 \
+            --skip-live-api \
+            --apply \
+            --qa "$QA_LEVEL"
+
+      - name: Summarize active library changes
+        run: |
+          python scripts/summarize_call_library_changes.py \
+            --before data/evaluation_outputs/calls_seed_clean_before_refresh.csv \
+            --after data/imports/calls_seed_clean.csv \
+            --json data/evaluation_outputs/call_library_change_summary.json \
+            --markdown data/evaluation_outputs/call_library_change_summary.md
+
+      - name: Run Gillis watchlist report
+        run: |
+          python scripts/run_watchlist_report.py \
+            --previous-csv data/evaluation_outputs/calls_seed_clean_before_refresh.csv \
+            --top-k 5 \
+            --output-json data/evaluation_outputs/watchlist_report.json \
+            --output-markdown data/evaluation_outputs/watchlist_report.md \
+            --output-csv data/evaluation_outputs/watchlist_report.csv
+
+      - name: Create pull request if the active library changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data/imports/calls_seed_clean.csv data/eu_funding.sqlite; then
+            echo "No active library changes detected."
+            exit 0
+          fi
+
+          BRANCH="call-library-refresh-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add data/imports/calls_seed_clean.csv data/eu_funding.sqlite
+          git commit -m "Refresh active EU call library"
+          git push --set-upstream origin "$BRANCH"
+
+          cat > pr_body.md <<'EOF'
+          Automated refresh from the official EU Funding & Tenders Search API.
+
+          EOF
+
+          cat data/evaluation_outputs/call_library_change_summary.md >> pr_body.md
+
+          cat >> pr_body.md <<'EOF'
+
+          ---
+
+          EOF
+
+          cat data/evaluation_outputs/watchlist_report.md >> pr_body.md
+
+          cat >> pr_body.md <<'EOF'
+
+          What this workflow did:
+          - fetched open/forthcoming EU Funding Portal records
+          - filtered and ranked Gillis-relevant records
+          - enriched candidates only where official evidence supported the metadata
+          - removed expired or invalid-deadline records from the active library
+          - rebuilt SQLite from the refreshed CSV
+          - ran the configured QA checks before opening this PR
+
+          Review before merge:
+          - check the CSV diff for unexpected themes or noisy calls
+          - confirm the active/upcoming count is still in the intended 250-300 range
+          - confirm Streamlit starts after merge and redeploy
+          - run a quick client-facing smoke test on critical materials, port energy, maritime logistics, and security inputs
+
+          This PR does not invent TRL, eligibility, consortium, partner, budget, or success-probability data.
+          EOF
+
+          gh pr create \
+            --title "Refresh active EU call library" \
+            --body-file pr_body.md

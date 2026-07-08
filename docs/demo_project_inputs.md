@@ -1,6 +1,6 @@
-# Demo Project Inputs
+# Project Input Examples
 
-These examples are suitable for a feedback session. They include a clear challenge, solution, users, European relevance, maturity, and expected impact.
+These examples show the level of detail that produces stronger, more defensible funding matches. They include a clear challenge, solution, users, European relevance, maturity, and expected impact.
 
 ## 1. Critical raw materials recycling
 
@@ -43,6 +43,6 @@ Why it needs more detail:
 
 - It does not describe a project or solution.
 - There is no target user, geography, maturity, or implementation context.
-- “Green” and “innovation” are too generic for defensible matching.
+- "Green" and "innovation" are too generic for defensible matching.
 
 Better input should describe the environmental problem, proposed solution, beneficiaries, demonstration activity, and expected European impact.

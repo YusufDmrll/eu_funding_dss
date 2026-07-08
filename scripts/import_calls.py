@@ -1,3 +1,4 @@
+import argparse
 import sqlite3
 import pandas as pd
 from pathlib import Path
@@ -32,7 +33,7 @@ COLUMNS = [
 ]
 
 
-def import_calls() -> int:
+def import_calls(*, replace_existing: bool = False) -> int:
     print(f"Reading CSV from: {CSV_PATH}")
 
     df = pd.read_csv(CSV_PATH, sep=";", encoding="utf-8-sig")
@@ -118,6 +119,9 @@ def import_calls() -> int:
             row["verified_status"],
         ])
 
+    if replace_existing:
+        cur.execute("DELETE FROM funding_calls")
+
     cur.executemany(upsert_sql, rows)
 
     conn.commit()
@@ -127,5 +131,17 @@ def import_calls() -> int:
     return len(rows)
 
 
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Import funding calls from the curated CSV into SQLite.")
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Clear existing funding_calls rows before importing, so SQLite exactly matches the CSV.",
+    )
+    args = parser.parse_args()
+    import_calls(replace_existing=args.replace)
+    return 0
+
+
 if __name__ == "__main__":
-    import_calls()
+    raise SystemExit(main())

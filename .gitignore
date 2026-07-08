@@ -41,6 +41,8 @@ eu_funding_screening_summary.pdf
 # Dataset staging, review, and backup artifacts not required at runtime
 data/backups/
 data/imports/backups/
+data/imports/archives/
+data/imports/partner_directory.csv
 data/imports/calls_seed_clean_backup_before_reviewed.csv
 data/imports/calls_seed_clean_reviewed.csv
 data/imports/eu_calls_raw_staging.csv

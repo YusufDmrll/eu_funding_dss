@@ -1,12 +1,12 @@
-# Gillis Feedback Release Decision
+# Gillis Client Release Decision
 
 Decision date: 15 June 2026
 
 ## Decision
 
-**Recommendation: ready to package for supervised Gillis feedback.**
+**Recommendation: ready for controlled Gillis client use.**
 
-**Overall release readiness: 9.0/10 for supervised feedback.**
+**Overall release readiness: 9.0/10 for controlled client use.**
 
 The focused product-upgrade and polish sprints resolved the release blockers identified in the client-alignment audit. The application now presents a clean client flow, gives practical call-level strengths, gaps, and next steps, uses more natural client-facing wording, and handles the priority shore-power scenario more defensibly without changing the semantic model, raw similarity, Strategic Fit Score formula, call library, or deadline filtering.
 
@@ -19,12 +19,13 @@ The focused product-upgrade and polish sprints resolved the release blockers ide
 - Supporting details now separate alignment strengths, information gaps, cautions, and practical next steps.
 - The PDF carries the same status rationale, clarifications, and next-step checklist.
 - The Gillis retrieval audit narrative and outputs now reflect the current client-display guardrails.
-- Prototype-style wording such as `pilot dataset`, `screening signals`, `priority review`, and empty `Project Title: N/A` output has been removed from the client-facing experience and PDF.
+- Outdated internal wording and empty project-title placeholders have been removed from the client-facing experience and PDF.
 - Official EU links are shown as readable topic-page links instead of long search URLs.
 
 ## Validated release state
 
-- 100 records in the working call library: 85 active/upcoming and 15 archived/expired.
+- 275 active/upcoming records in the working call library.
+- Expired records are removed from the active library during promotion and archived outside the default screening pool.
 - Expired calls remain hidden from normal screening.
 - Semantic retrieval completed all 14 Gillis audit cases without fallback.
 - Semantic audit: 13/14 top-1 cases passed; 35/42 top-3 results were judged relevant.
@@ -42,7 +43,7 @@ The focused product-upgrade and polish sprints resolved the release blockers ide
 - Hydrogen and maritime-logistics result tails can include adjacent calls that need careful review.
 - The product does not identify partners, build consortia, write proposals, or estimate funding success probability.
 
-## Recommended feedback-session positioning
+## Recommended client-use positioning
 
 Present the product as:
 
@@ -57,7 +58,7 @@ Lead with realistic multi-sentence examples in this order:
 
 Ask Gillis to judge whether the shortlist saves research time, whether call differences are clear, whether the cautions are useful, and whether the next steps support a real go/no-go review.
 
-## Next phase after feedback
+## Next phase after initial use
 
 1. Review Gillis's recorded relevance judgments and repeated false-positive patterns.
 2. Enrich official eligibility and consortium details for the calls Gillis uses most.

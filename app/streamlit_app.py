@@ -1,5 +1,6 @@
 import html
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 
+from core.access_control import get_configured_access_code, verify_access_code
 from core.client_experience import (
     build_call_strategy,
     build_review_status_reason,
@@ -19,18 +21,26 @@ from core.client_experience import (
 )
 from core.db import count_calls, fetch_calls, run_seed_import
 from core.dataset_status import get_dataset_status
-from core.deadlines import (
-    EXPIRED,
-    INVALID_DEADLINE,
-    OPEN_OR_UPCOMING,
-    UNKNOWN_DEADLINE,
-    classify_deadline,
+from core.dataset_review import (
+    APPROVAL_LOG_PATH,
+    APPROVED_PROMOTION_PATH,
+    DECISION_APPROVE,
+    DECISION_HOLD,
+    DECISION_REJECT,
+    REVIEW_SOURCE_OPTIONS,
+    build_review_rows,
+    load_review_metadata,
+    read_csv_records,
+    write_approval_batch,
 )
+from core.deadlines import build_deadline_urgency
+from core.grant_assistant import build_concept_note_starter, build_proposal_readiness_memo
 from core.input_quality import (
     NON_PROJECT_INPUT_WARNING,
     WEAK_INPUT_GUIDANCE,
     evaluate_project_description,
 )
+from core.partner_matching import build_partner_guidance
 from core.reporting import build_decision_support_pdf
 from core.retrieval import DEFAULT_END_USER_RETRIEVAL_MODE, execute_retrieval
 from core.scoring import (
@@ -169,19 +179,8 @@ def format_trl_alignment(result: dict) -> str:
 
 
 def format_deadline_status(result: dict) -> tuple[str, str, bool]:
-    raw_deadline = result.get("deadline_utc")
-    status = result.get("deadline_status") or classify_deadline(raw_deadline)
-    formatted_deadline = format_deadline(raw_deadline)
-
-    if status == OPEN_OR_UPCOMING:
-        return "Open or upcoming", formatted_deadline, False
-    if status == EXPIRED:
-        return "Archived", formatted_deadline, True
-    if status == UNKNOWN_DEADLINE:
-        return "Deadline not listed", "Confirm on the official source", True
-    if status == INVALID_DEADLINE:
-        return "Deadline needs confirmation", "Confirm on the official source", True
-    return "Deadline needs confirmation", "Confirm on the official source", True
+    urgency = build_deadline_urgency(result.get("deadline_utc"))
+    return urgency["label"], urgency["detail"], bool(urgency["needs_attention"])
 
 
 def parse_deadline(deadline_utc: str | None) -> datetime | None:
@@ -338,7 +337,6 @@ def build_primary_caution(result: dict) -> str | None:
     data_quality_flags = result.get("data_quality_flags") or []
     trl_alignment = (result.get("strategic_success_components") or {}).get("trl_alignment", 100.0)
     result_text = build_result_text(result)
-    deadline = parse_deadline(result.get("deadline_utc"))
     generic_eligibility_issue = any(
         term in " ".join([str(item).lower() for item in reasons + warnings + data_quality_flags])
         for term in ["country", "organisation", "eligible countries", "metadata"]
@@ -420,10 +418,11 @@ def build_primary_caution(result: dict) -> str | None:
     if trl_alignment < 100:
         return "The thematic fit looks stronger than the current TRL alignment."
 
-    if deadline is not None:
-        now = datetime.now(deadline.tzinfo)
-        if 0 <= (deadline - now).days <= 120:
-            return "This call may need near-term shortlisting if you decide to pursue it."
+    deadline_urgency = build_deadline_urgency(result.get("deadline_utc"))
+    if deadline_urgency.get("urgency") in {"urgent", "closing_soon"}:
+        return "The deadline is close; only shortlist this if the team can act quickly."
+    if deadline_urgency.get("urgency") == "review_timing":
+        return "The deadline is not immediate, but a go/no-go decision should be planned before deeper proposal work."
 
     if generic_eligibility_issue:
         return "Eligibility conditions should still be confirmed on the official call page."
@@ -703,14 +702,18 @@ def render_result_card(
         input_quality=input_quality,
     )
     strategy = build_call_strategy(result, project_inputs)
+    partner_guidance = build_partner_guidance(result, project_inputs)
+    concept_note = build_concept_note_starter(result, project_inputs)
+    readiness_memo = build_proposal_readiness_memo(result, project_inputs)
     primary_next_step = strategy["next_steps"][0] if strategy["next_steps"] else select_primary_next_step(guidance_items)
     primary_caution = build_theme_aware_caution(result, project_inputs) or build_primary_caution(result)
     call_reference_text = f"Call {str(result.get('call_id') or '').strip()}"
+    deadline_urgency = build_deadline_urgency(result.get("deadline_utc"))
     deadline_status_label, deadline_status_detail, deadline_needs_attention = format_deadline_status(result)
     if deadline_needs_attention:
-        deadline_text = deadline_status_label
+        deadline_text = deadline_urgency["short_text"]
     else:
-        deadline_text = f"Deadline {deadline_status_detail}"
+        deadline_text = deadline_urgency["short_text"]
     deadline_value_class = "ui-fact-value ui-fact-warning" if deadline_needs_attention else "ui-fact-value"
     programme_cluster = format_programme_cluster(result)
     eligibility_summary = format_eligibility_summary(result)
@@ -817,8 +820,270 @@ def render_result_card(
             for item in strategy["next_steps"]:
                 st.markdown(f"- {_escape_text(item)}")
 
+            st.markdown("**Partner setup to verify**")
+            st.markdown(_escape_text(partner_guidance["summary"]))
+            if partner_guidance.get("outreach_focus"):
+                st.markdown(f"**First outreach step**  \n{_escape_text(partner_guidance['outreach_focus'])}")
+            if partner_guidance.get("outreach_rationale"):
+                st.markdown(f"**Why these roles matter**  \n{_escape_text(partner_guidance['outreach_rationale'])}")
+            primary_roles = partner_guidance.get("primary_roles") or []
+            if primary_roles:
+                st.markdown("**Priority partner roles**")
+                for role in primary_roles[:2]:
+                    st.markdown(
+                        f"- **{_escape_text(role.get('label'))}**: {_escape_text(role.get('reason'))}"
+                    )
+            supporting_roles = partner_guidance.get("supporting_roles") or []
+            if supporting_roles:
+                st.markdown("**Additional roles to consider**")
+                for role in supporting_roles[:2]:
+                    st.markdown(f"- {_escape_text(role.get('label'))}")
+            directory_suggestions = partner_guidance.get("directory_suggestions") or {}
+            directory_matches = directory_suggestions.get("matches") or []
+            search_profile = directory_suggestions.get("search_profile") or {}
+            if directory_matches:
+                st.markdown("**Curated partner-directory matches**")
+                for match in directory_matches[:3]:
+                    details = ", ".join(
+                        item
+                        for item in [
+                            match.get("country"),
+                            match.get("organization_type"),
+                            match.get("sector"),
+                        ]
+                        if item
+                    )
+                    st.markdown(
+                        f"- **{_escape_text(match.get('organization_name'))}**"
+                        + (f" - {_escape_text(details)}" if details else "")
+                    )
+                    if match.get("reasons"):
+                        st.caption("; ".join(_escape_text(reason) for reason in match["reasons"][:2]))
+            elif search_profile.get("roles") or search_profile.get("themes"):
+                st.markdown("**Partner search profile**")
+                if search_profile.get("roles"):
+                    st.markdown("Roles: " + _escape_text("; ".join(search_profile["roles"][:4])))
+                if search_profile.get("themes"):
+                    st.markdown("Themes: " + _escape_text("; ".join(search_profile["themes"][:4])))
+                if directory_suggestions.get("note"):
+                    st.caption(_escape_text(directory_suggestions["note"]))
+            st.caption(partner_guidance["caution"])
+
+            st.markdown("**Proposal preparation focus**")
+            st.markdown(
+                f"**{_escape_text(readiness_memo['readiness_level'])}**  \n"
+                f"{_escape_text(readiness_memo['summary'])}"
+            )
+            st.markdown(f"**Call-fit angle**  \n{_escape_text(concept_note['call_fit_angle'])}")
+            if readiness_memo.get("preparation_focus"):
+                st.markdown("**Preparation focus**")
+                for item in readiness_memo["preparation_focus"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            if concept_note["evidence_to_collect"]:
+                st.markdown("**Evidence to collect**")
+                for item in concept_note["evidence_to_collect"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            if readiness_memo["strongest_starting_points"]:
+                st.markdown("**Strongest starting points**")
+                for item in readiness_memo["strongest_starting_points"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            if readiness_memo["main_gaps"]:
+                st.markdown("**Before proposal work**")
+                for item in readiness_memo["main_gaps"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            if readiness_memo["first_actions"]:
+                st.markdown("**First preparation actions**")
+                for item in readiness_memo["first_actions"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            if concept_note["missing_information"]:
+                st.markdown("**Clarify before drafting**")
+                for item in concept_note["missing_information"][:3]:
+                    st.markdown(f"- {_escape_text(item)}")
+            st.caption(readiness_memo["source_caution"])
+
             st.markdown(
                 f"**Deadline status**  \n{deadline_status_label}: {deadline_status_detail}"
+            )
+
+
+def render_internal_dataset_review_panel() -> None:
+    if not INTERNAL_MODE:
+        return
+
+    import pandas as pd
+
+    def run_refresh_command(*, apply: bool) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "refresh_call_library.py"),
+            "--target-active",
+            "300",
+            "--skip-live-api",
+            "--qa",
+            "quick" if apply else "none",
+        ]
+        if apply:
+            command.append("--apply")
+        return subprocess.run(
+            command,
+            cwd=PROJECT_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    with st.expander("Internal dataset refresh controls", expanded=False):
+        dataset_status = get_dataset_status()
+        st.caption(
+            "Use GitHub Actions for permanent hosted updates. The workflow fetches official EU records, "
+            "runs the local quality filters, rebuilds SQLite, runs QA, and opens a pull request."
+        )
+        st.markdown(
+            f"Current working library: **{dataset_status['open_or_upcoming_records']} active/upcoming calls** "
+            f"from **{dataset_status['total_records']} total records**."
+        )
+        st.caption(
+            "Local buttons below are useful for admin maintenance. On Streamlit Cloud, runtime file changes may not "
+            "persist after reboot unless the GitHub pull request is merged."
+        )
+
+        refresh_cols = st.columns([1, 1])
+        with refresh_cols[0]:
+            if st.button("Preview EU refresh", type="secondary"):
+                with st.spinner("Fetching official EU records and preparing refresh candidates..."):
+                    result = run_refresh_command(apply=False)
+                if result.returncode == 0:
+                    st.success("Preview completed. Staging and candidate files were refreshed; the main dataset was not modified.")
+                else:
+                    st.error("Preview refresh failed. Check the output below.")
+                with st.expander("Refresh output", expanded=result.returncode != 0):
+                    st.code((result.stdout + "\n" + result.stderr)[-6000:])
+
+        with refresh_cols[1]:
+            apply_confirmed = st.checkbox(
+                "I understand this updates local CSV/SQLite and creates backups.",
+                value=False,
+            )
+            if st.button("Apply local refresh", disabled=not apply_confirmed, type="secondary"):
+                with st.spinner("Applying safe refresh with backups, SQLite import, and quick tests..."):
+                    result = run_refresh_command(apply=True)
+                if result.returncode == 0:
+                    st.success("Local refresh completed. Restart or rerun the app if needed to reload updated data.")
+                else:
+                    st.error("Local refresh did not complete cleanly. Do not use the updated files until reviewed.")
+                with st.expander("Refresh output", expanded=result.returncode != 0):
+                    st.code((result.stdout + "\n" + result.stderr)[-8000:])
+
+    available_sources = {
+        label: path
+        for label, path in REVIEW_SOURCE_OPTIONS.items()
+        if path.exists()
+    }
+
+    with st.expander("Internal dataset staging review", expanded=False):
+        st.caption(
+            "Review staged EU Funding records and create an approved promotion CSV. "
+            "This panel does not modify the main CSV or SQLite database."
+        )
+
+        if not available_sources:
+            render_notice("No staging or promotion candidate files are available yet.", tone="review")
+            st.caption("Run the dataset update workflow first, then return to this panel.")
+            return
+
+        source_label = st.selectbox("Review source", list(available_sources.keys()))
+        source_path = available_sources[source_label]
+        records = read_csv_records(source_path)
+        review_metadata = load_review_metadata()
+        review_rows = build_review_rows(records, review_metadata=review_metadata)
+
+        st.caption(f"{len(records)} records loaded from `{source_path.name}`.")
+        if not review_rows:
+            render_notice("The selected review source contains no records.", tone="review")
+            return
+
+        review_df = pd.DataFrame(review_rows)
+        metric_cols = st.columns(4)
+        with metric_cols[0]:
+            st.metric("Records", len(review_df))
+        with metric_cols[1]:
+            st.metric("Approvable", int(review_df["can_approve"].sum()))
+        with metric_cols[2]:
+            st.metric("Blocked", int((~review_df["can_approve"]).sum()))
+        with metric_cols[3]:
+            st.metric("Missing metadata avg", f"{review_df['missing_metadata_count'].mean():.1f}")
+
+        show_only_approvable = st.checkbox("Show only approvable records", value=True)
+        visible_df = review_df[review_df["can_approve"]] if show_only_approvable else review_df
+        visible_df = visible_df.copy()
+
+        editable_columns = [
+            "decision",
+            "can_approve",
+            "call_id",
+            "title",
+            "deadline_status",
+            "deadline_utc",
+            "action_type",
+            "cluster",
+            "promotion_score",
+            "theme_score",
+            "matched_themes",
+            "missing_metadata_count",
+            "flags",
+            "blockers",
+            "source_url",
+        ]
+        visible_df = visible_df[[column for column in editable_columns if column in visible_df.columns]]
+        edited_df = st.data_editor(
+            visible_df,
+            width="stretch",
+            hide_index=True,
+            disabled=[column for column in visible_df.columns if column != "decision"],
+            column_config={
+                "decision": st.column_config.SelectboxColumn(
+                    "Decision",
+                    options=[DECISION_HOLD, DECISION_APPROVE, DECISION_REJECT],
+                    required=True,
+                ),
+                "source_url": st.column_config.LinkColumn("Official source"),
+            },
+            key=f"dataset_review_editor_{source_label}",
+        )
+
+        approved_count = int((edited_df["decision"] == DECISION_APPROVE).sum()) if not edited_df.empty else 0
+        if approved_count:
+            st.caption(
+                f"{approved_count} record{'s' if approved_count != 1 else ''} selected for approved promotion export."
+            )
+        else:
+            st.caption("No records are selected for approval yet.")
+
+        write_requested = st.button(
+            "Write approved promotion CSV",
+            disabled=approved_count == 0,
+            type="secondary",
+        )
+        if write_requested:
+            decisions = {
+                str(row["call_id"]): row["decision"]
+                for _, row in edited_df.iterrows()
+            }
+            log = write_approval_batch(source_path, decisions)
+            st.success(
+                f"Wrote {log['summary']['approved']} approved record"
+                f"{'s' if log['summary']['approved'] != 1 else ''} to `{APPROVED_PROMOTION_PATH.name}`."
+            )
+            if log["summary"]["blocked"]:
+                st.warning(f"{log['summary']['blocked']} selected record(s) were blocked by safety checks.")
+            st.caption(f"Approval log: `{APPROVAL_LOG_PATH.name}`.")
+
+        if APPROVED_PROMOTION_PATH.exists():
+            st.download_button(
+                "Download latest approved promotion CSV",
+                data=APPROVED_PROMOTION_PATH.read_bytes(),
+                file_name=APPROVED_PROMOTION_PATH.name,
+                mime="text/csv",
             )
 
 
@@ -1397,6 +1662,44 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+def render_access_gate() -> None:
+    if INTERNAL_MODE:
+        return
+
+    configured_code = get_configured_access_code(secrets=st.secrets)
+    if not configured_code:
+        return
+
+    if st.session_state.get("access_granted"):
+        return
+
+    st.markdown(
+        """
+        <div>
+            <div class="ui-hero-title">EU Funding Match</div>
+            <div class="ui-hero-subtitle">Secure access for EU funding screening.</div>
+            <div class="ui-hero-focus">
+                Enter your access code to continue.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.form("access_gate_form"):
+        submitted_code = st.text_input("Access code", type="password")
+        unlock = st.form_submit_button("Open screening tool")
+    if unlock:
+        if verify_access_code(submitted_code, configured_code):
+            st.session_state["access_granted"] = True
+            st.rerun()
+        else:
+            render_notice("The access code was not recognised. Please check the code and try again.", tone="review")
+    st.stop()
+
+
+render_access_gate()
+
 st.markdown(
     """
     <div>
@@ -1674,6 +1977,8 @@ if "last_retrieval_inputs" in st.session_state:
                 project_inputs=project_inputs,
             )
 
+render_internal_dataset_review_panel()
+
 with st.sidebar:
     with st.expander("Call library", expanded=False):
         try:
@@ -1685,6 +1990,18 @@ with st.sidebar:
                 f"{dataset_status['total_records']} records in the working library; "
                 f"{dataset_status['expired_records']} archived calls are hidden from default results."
             )
+            if dataset_status.get("due_within_30_days_records"):
+                st.warning(
+                    f"{dataset_status['due_within_30_days_records']} active calls close within 30 days."
+                )
+            if dataset_status.get("closing_soon_records"):
+                later_closing = max(
+                    0,
+                    dataset_status["closing_soon_records"]
+                    - dataset_status.get("due_within_30_days_records", 0),
+                )
+                if later_closing:
+                    st.caption(f"{later_closing} additional active calls close within 90 days.")
 
             deadline_issues = (
                 dataset_status["unknown_deadline_records"]

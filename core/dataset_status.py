@@ -4,11 +4,14 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from core.deadlines import (
+    CLOSING_SOON,
     EXPIRED,
     INVALID_DEADLINE,
     OPEN_OR_UPCOMING,
     UNKNOWN_DEADLINE,
     classify_deadline,
+    classify_deadline_window,
+    days_until_deadline,
 )
 
 
@@ -28,6 +31,8 @@ def calculate_dataset_status(
     status = {
         "total_records": 0,
         "open_or_upcoming_records": 0,
+        "closing_soon_records": 0,
+        "due_within_30_days_records": 0,
         "expired_records": 0,
         "unknown_deadline_records": 0,
         "invalid_deadline_records": 0,
@@ -48,6 +53,11 @@ def calculate_dataset_status(
         status["total_records"] += 1
         deadline_status = classify_deadline(record.get("deadline_utc"), today=today)
         status[deadline_count_keys[deadline_status]] += 1
+        if classify_deadline_window(record.get("deadline_utc"), today=today) == CLOSING_SOON:
+            status["closing_soon_records"] += 1
+        days_remaining = days_until_deadline(record.get("deadline_utc"), today=today)
+        if deadline_status == OPEN_OR_UPCOMING and days_remaining is not None and days_remaining <= 30:
+            status["due_within_30_days_records"] += 1
 
         for field in (
             "eligible_countries",

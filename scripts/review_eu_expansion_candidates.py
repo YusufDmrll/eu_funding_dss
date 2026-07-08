@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 import os
@@ -465,10 +466,14 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
-def _held_back_summary(held_back: list[dict[str, Any]]) -> dict[str, Any]:
+def _held_back_summary(
+    held_back: list[dict[str, Any]],
+    *,
+    minimum_score: int = MIN_PROMOTION_SCORE,
+) -> dict[str, Any]:
     reasons: Counter[str] = Counter()
     for item in held_back:
-        if item["promotion_readiness_score"] < MIN_PROMOTION_SCORE:
+        if item["promotion_readiness_score"] < minimum_score:
             reasons["Promotion-readiness score below the quality threshold"] += 1
         for reason in item.get("hold_reasons") or []:
             reasons[reason] += 1
@@ -492,8 +497,15 @@ def _held_back_summary(held_back: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_review() -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    recommended = _read_csv(RECOMMENDED_PATH)
+def build_review(
+    *,
+    recommended_path: Path = RECOMMENDED_PATH,
+    output_path: Path = OUTPUT_PATH,
+    review_log_path: Path = REVIEW_LOG_PATH,
+    max_candidates: int = MAX_CANDIDATES,
+    minimum_score: int = MIN_PROMOTION_SCORE,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    recommended = _read_csv(recommended_path)
     curated = _read_csv(CURATED_PATH)
     expansion_log = json.loads(EXPANSION_LOG_PATH.read_text(encoding="utf-8"))
     expansion_by_id = {
@@ -504,23 +516,27 @@ def build_review() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         review_record(record, expansion_by_id.get(record["call_id"], {}), curated)
         for record in recommended
     ]
-    selected, held_back = select_promotion_candidates(reviewed)
-    _atomic_write_csv(OUTPUT_PATH, [item["record"] for item in selected])
+    selected, held_back = select_promotion_candidates(
+        reviewed,
+        limit=max_candidates,
+        minimum_score=minimum_score,
+    )
+    _atomic_write_csv(output_path, [item["record"] for item in selected])
 
-    audit = audit_dataset(OUTPUT_PATH)
+    audit = audit_dataset(output_path)
     selected_themes = Counter(theme for item in selected for theme in item["matched_themes"])
     missing_fields = Counter(field for item in selected for field in item["missing_metadata_fields"])
 
     log = {
         "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "source_files": {
-            "recommended_expansion": str(RECOMMENDED_PATH.relative_to(PROJECT_ROOT)),
+            "recommended_expansion": str(recommended_path.relative_to(PROJECT_ROOT)),
             "expansion_log": str(EXPANSION_LOG_PATH.relative_to(PROJECT_ROOT)),
             "curated_dataset": str(CURATED_PATH.relative_to(PROJECT_ROOT)),
         },
         "selection_policy": {
-            "maximum_candidates": MAX_CANDIDATES,
-            "minimum_promotion_readiness_score": MIN_PROMOTION_SCORE,
+            "maximum_candidates": max_candidates,
+            "minimum_promotion_readiness_score": minimum_score,
             "principle": "Prioritise strong Gillis-theme relevance and usable official metadata; penalise broad tag-only and off-theme matches.",
         },
         "counts": {
@@ -538,27 +554,41 @@ def build_review() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             }
             for item in selected
         ],
-        "held_back": _held_back_summary(held_back),
+        "held_back": _held_back_summary(held_back, minimum_score=minimum_score),
         "candidate_audit": {
             "total_rows": audit["total_rows"],
             "counts": audit["counts"],
         },
-        "output_file": str(OUTPUT_PATH.relative_to(PROJECT_ROOT)),
+        "output_file": str(output_path.relative_to(PROJECT_ROOT)),
         "safety_note": "The curated CSV and SQLite database were not modified by this review process.",
     }
-    _atomic_write_json(REVIEW_LOG_PATH, log)
+    _atomic_write_json(review_log_path, log)
     return selected, log
 
 
 def main() -> int:
-    selected, log = build_review()
+    parser = argparse.ArgumentParser(description="Review EU API expansion records and prepare promotion candidates.")
+    parser.add_argument("--recommended", type=Path, default=RECOMMENDED_PATH)
+    parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    parser.add_argument("--log", type=Path, default=REVIEW_LOG_PATH)
+    parser.add_argument("--max-candidates", type=int, default=MAX_CANDIDATES)
+    parser.add_argument("--minimum-score", type=int, default=MIN_PROMOTION_SCORE)
+    args = parser.parse_args()
+
+    selected, log = build_review(
+        recommended_path=args.recommended,
+        output_path=args.output,
+        review_log_path=args.log,
+        max_candidates=args.max_candidates,
+        minimum_score=args.minimum_score,
+    )
     print("EU expansion promotion review")
     print(f"Recommended records reviewed: {log['counts']['recommended_records_reviewed']}")
     print(f"Selected for promotion candidates: {len(selected)}")
     print(f"Held back: {log['counts']['held_back']}")
     print(f"Top selected themes: {log['top_selected_themes']}")
-    print(f"Candidate CSV: {OUTPUT_PATH}")
-    print(f"Review log: {REVIEW_LOG_PATH}")
+    print(f"Candidate CSV: {args.output}")
+    print(f"Review log: {args.log}")
     return 0
 
 

@@ -6,7 +6,7 @@ Audit date: 15 June 2026
 
 The current system is a credible supervised funding-screening product, but it does not yet cover the full Gillis vision. It is strongest at identifying active Horizon Europe calls, producing a cautious shortlist, and giving an initial screening explanation. It is not yet a partner-building, proposal-development, or success-pattern platform.
 
-The main release question is therefore not whether the full vision is complete. It is whether the current screening scope is useful and honest enough for a supervised Gillis feedback session. The answer is now yes. The product-upgrade sprint resolved the two release blockers identified during this audit: internal maintenance controls are gated behind an explicit internal mode, and the core port shore-power scenario now presents direct harbour relevance before adjacent ship-side topics.
+The main release question is therefore not whether the full vision is complete. It is whether the current screening scope is useful, honest, and stable enough for controlled Gillis client use. The answer is now yes. The product-upgrade sprint resolved the two release blockers identified during this audit: internal maintenance controls are gated behind an explicit internal mode, and the core port shore-power scenario now presents direct harbour relevance before adjacent ship-side topics.
 
 ## Post-sprint status
 
@@ -24,7 +24,7 @@ The main release question is therefore not whether the full vision is complete. 
 - `AI-Driven EU Funding Match & Strategy System (3).pdf`
 - `README.md`
 - `docs/demo_project_inputs.md`
-- `docs/gillis_feedback_questions.md`
+- `docs/client_review_questions.md`
 - `docs/release_checklist.md`
 - `data/evaluation_outputs/gillis_retrieval_quality_summary.md`
 - `data/evaluation_outputs/gillis_retrieval_quality_report.json`
@@ -82,8 +82,8 @@ Evidence: `AI-Driven EU Funding Match & Strategy System (3).pdf`, pages 2-5.
 
 ## Current product evidence
 
-- 100 curated Horizon Europe records.
-- 85 active or upcoming records; 15 expired records retained but hidden by default.
+- 275 active/upcoming Horizon Europe records in the working call library.
+- Expired records are removed from the active library during promotion and archived outside the default screening pool.
 - No invalid deadlines, duplicate call IDs, missing source URLs, or detected encoding artifacts.
 - Semantic retrieval ran in 14/14 Gillis evaluation cases without lexical fallback.
 - Current test suite: 72 tests passed.
@@ -94,26 +94,26 @@ Evidence: `AI-Driven EU Funding Match & Strategy System (3).pdf`, pages 2-5.
 
 Important data limitations:
 
-- Eligible-country metadata is missing for 94 of 100 records.
-- Eligible-organisation metadata is missing for 93 of 100 records.
-- TRL minimum is missing for 39 records; TRL maximum is missing for 17.
-- Consortium-required metadata is present for 58 records; minimum-partner data is present for 51.
+- Eligible-country metadata is missing for 272 of 275 records.
+- Eligible-organisation metadata is missing for 268 of 275 records.
+- TRL minimum is missing for 164 records; TRL maximum is missing for 129.
+- Consortium-required metadata is present for 49 records; minimum-partner data is present for 36.
 
 ## Requirement-fit matrix
 
 | Requirement | Evidence from client documents | Current system support | Score | Gap or risk | Recommended action |
 |---|---|---|---:|---|---|
-| Fast and precise EU funding identification | Strategy document asks for access that is quick, effective, and precise; concept document prioritises reduced research time. | Semantic retrieval, active-call filtering, concise shortlist, official sources, a clear progress state, and a narrow client-display correction for explicit port-side inputs are implemented. | 8.0/10 | Broad and cross-sector tails still need supervised review. | Use feedback cases to guide only narrow, tested precision changes. |
+| Fast and precise EU funding identification | Strategy document asks for access that is quick, effective, and precise; concept document prioritises reduced research time. | Semantic retrieval, active-call filtering, concise shortlist, official sources, a clear progress state, and a narrow client-display correction for explicit port-side inputs are implemented. | 8.0/10 | Broad and cross-sector tails still need careful review. | Use recorded client cases to guide only narrow, tested precision changes. |
 | Target themes | Strategy document names maritime, security, critical materials, and green energy; start-up/scale-up/SME financing is central. | Critical materials and battery circularity are strong. Port energy and critical-infrastructure security are useful. Hydrogen and maritime-logistics tails drift. SME/start-up support is weak. | 7.0/10 | Coverage is uneven; SME support is not currently a dependable theme. | Position the strong themes explicitly. Treat SME support and hydrogen tails as supervised-review areas. |
-| Call relevance and active deadline filtering | Grant-process document treats suitable-call identification and deadlines as foundational. | Expired calls are excluded by default; 85 actionable calls remain. No expired calls appeared in the 14-case evaluation. Top-3 precision is mixed in hydrogen, maritime logistics, and SME cases. | 8.0/10 | Deadline handling is strong; relevance tails remain the main risk. | Keep the current active filter. Prefer fewer results when theme coherence weakens. |
+| Call relevance and active deadline filtering | Grant-process document treats suitable-call identification and deadlines as foundational. | Expired calls are excluded by default; 275 actionable calls remain. No expired calls appeared in the 14-case evaluation. Top-3 precision is mixed in hydrogen, maritime logistics, and SME cases. | 8.0/10 | Deadline handling is strong; relevance tails remain the main risk. | Keep the current active filter. Prefer fewer results when theme coherence weakens. |
 | Eligibility and TRL usefulness | Client process requires organisation/nationality eligibility, innovation level, and official-document checks. | Eligibility and TRL are evaluated and shown cautiously. TRL coverage is moderate. Country and organisation eligibility data are absent for almost the entire dataset. | 4.0/10 | The UI can identify uncertainty, but it cannot provide a strong eligibility opinion for most calls. | Do not market this as eligibility verification. Enrich the highest-priority active calls from official documents. |
 | Consortium and partner-building support | Both client documents emphasise consortium building, partner roles, and partner search. | The form captures expected partners; guidance can flag consortium requirements where metadata exists. No partner discovery, organisation suggestions, or consortium composition support exists. | 3.0/10 | Current support is a reminder, not partner-building assistance. | Keep as an honest limitation. Build partner/consortium discovery only as a later module. |
 | Proposal preparation support | Client process covers proposal summaries, objectives, work plans, budgets, risks, and building blocks. | The product provides short next actions and cautions, but no proposal structure, work-package, budget, or drafting support. | 2.0/10 | The current system stops after early screening. | Position the product as call screening and first-step guidance. Treat proposal preparation as future work. |
 | Strategic insights and next steps | Concept document requires alignment insights, strengths/gaps, and improvement recommendations. | Cards and PDF now provide status rationale, alignment strengths, information gaps, cautions, and a short call-specific action checklist. | 8.0/10 | Useful for triage, but not a substitute for full grant-consulting analysis. | Validate action usefulness with Gillis and keep additions evidence-based. |
-| PDF/report usefulness | Concept document includes downloadable evaluation reports; process document expects shareable call analysis. | The PDF is readable, active-call-only, source-linked, cautious, and useful for sharing a shortlist. It includes project context, scores, status, eligibility/TRL caveats, next action, and caution. | 8.0/10 | Long official URLs add visual weight; content still depends on incomplete metadata. | Suitable for feedback use. Consider cleaner linked labels later, without hiding source traceability. |
+| PDF/report usefulness | Concept document includes downloadable evaluation reports; process document expects shareable call analysis. | The PDF is readable, active-call-only, source-linked, cautious, and useful for sharing a shortlist. It includes project context, scores, status, eligibility/TRL caveats, next action, and caution. | 8.0/10 | Content still depends on incomplete official metadata in some records. | Suitable for controlled client use. Keep source traceability visible. |
 | Non-technical client usability | Client needs speed and practical use, not technical configuration. | The default flow is clear: description, optional context, shortlist, strategic details, and PDF. Internal controls are hidden unless explicitly enabled, and the first semantic run shows a calm progress state. | 8.5/10 | Streamlit cold-start time remains environment-dependent. | Pre-warm the environment before a meeting and observe Gillis's first-use behavior. |
 | Transparency and limitations | Official documents must remain authoritative; eligibility mistakes can cause immediate rejection. | The app shows dataset status, official sources, deadline state, score caveat, cautious labels, and missing-metadata warnings. | 9.0/10 | Transparency is one of the strongest aspects, but it must remain concise. | Preserve the current cautions and official-source requirement. |
-| Readiness for supervised Gillis feedback | Project concept defines the pilot as feasibility and user-value validation. | Installation, semantic health check, tests, sample inputs, feedback questions, release checklist, client mode, guarded status wording, and call-level strategy guidance are present. | 8.5/10 | Suitable for guided feedback, not autonomous funding decisions. | Package for supervised feedback and collect structured relevance judgments. |
+| Readiness for Gillis client use | Project concept defines a staged path from screening toward broader funding support. | Installation, semantic health check, tests, sample inputs, review questions, release checklist, client mode, guarded status wording, and call-level strategy guidance are present. | 8.5/10 | Suitable for controlled screening support, not autonomous funding decisions. | Use real client cases to collect structured relevance judgments. |
 
 ## Gap classification
 
@@ -123,11 +123,11 @@ No open release blockers remain from this audit. Client-mode gating, first-run p
 
 ### QUICK WIN before sending
 
-1. Keep the feedback session focused on critical materials, battery circularity, port/harbour energy, and critical-infrastructure security. Do not lead with SME support or broad innovation ecosystem examples.
+1. Keep early client use focused on critical materials, battery circularity, port/harbour energy, and critical-infrastructure security. Do not lead with SME support or broad innovation ecosystem examples.
 2. Use the release checklist to pre-run the environment, open the app, and verify one PDF before the meeting.
 3. Record Gillis's top-result and top-three judgments so future changes remain evidence-led.
 
-### ACCEPTABLE LIMITATION for the feedback version
+### ACCEPTABLE LIMITATION for the current version
 
 - The dataset is curated and selective rather than complete coverage of all EU programmes.
 - The current release focuses on Horizon Europe rather than every funding instrument mentioned in the concept document.
@@ -166,4 +166,4 @@ Do not position the current release as:
 
 The product fits the first, most important part of Gillis's need: faster identification and early screening of relevant active calls in selected strategic themes. It only partially fits the broader ambition to organise the full journey from funding discovery through consortium formation and proposal preparation.
 
-That is acceptable for a supervised feedback release if the scope is stated clearly. It is not acceptable to expose internal maintenance controls or to leave a misleading strong top result in one of the primary demonstration scenarios.
+That is acceptable for controlled client use if the scope is stated clearly. It is not acceptable to expose internal maintenance controls or to leave a misleading strong top result in one of the primary demonstration scenarios.

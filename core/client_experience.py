@@ -2,6 +2,8 @@ import os
 import re
 from typing import Any, Dict, Iterable, List
 
+from core.deadlines import build_deadline_urgency
+
 
 INTERNAL_MODE_ENV = "EU_FUNDING_INTERNAL_MODE"
 
@@ -493,9 +495,15 @@ def build_call_strategy(
             if len(clarifications) >= 2:
                 break
 
+    deadline_urgency = build_deadline_urgency(result.get("deadline_utc"))
+    if deadline_urgency.get("urgency") in {"urgent", "closing_soon"}:
+        next_steps.append(deadline_urgency["action"])
+
     theme_next_action = build_theme_aware_next_action(result, project_inputs)
     if theme_next_action:
         next_steps.append(theme_next_action)
+    elif deadline_urgency.get("urgency") == "review_timing":
+        next_steps.append(deadline_urgency["action"])
     next_steps.append("Check applicant eligibility and participation conditions in the official call documents.")
     next_steps.append("Map the project objectives and impact to the call's expected outcomes.")
 

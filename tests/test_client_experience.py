@@ -1,4 +1,5 @@
 import unittest
+from datetime import date, timedelta
 
 from core.client_experience import (
     build_call_strategy,
@@ -99,6 +100,30 @@ class ClientExperienceTests(unittest.TestCase):
         self.assertTrue(any("eligibility" in item.lower() for item in strategy["clarifications"]))
         self.assertTrue(any("consortium" in item.lower() for item in strategy["next_steps"]))
         self.assertLessEqual(len(strategy["next_steps"]), 4)
+
+    def test_call_strategy_prioritises_urgent_deadline_action(self) -> None:
+        urgent_deadline = (date.today() + timedelta(days=7)).isoformat()
+        strategy = build_call_strategy(
+            {
+                "call_title": "Green harbour energy infrastructure",
+                "description": "Port energy systems and shore power demonstration.",
+                "deadline_utc": urgent_deadline,
+                "theme_coherence": {
+                    "shared_themes": ["port_energy_hydrogen"],
+                    "coherence_level": "strong",
+                    "guardrails": [],
+                },
+                "strategic_success_components": {"trl_alignment": 100.0},
+                "consortium_required": 0,
+            },
+            {
+                "project_desc": "A shore power project for port authorities.",
+                "user_trl": None,
+                "has_consortium": False,
+            },
+        )
+
+        self.assertIn("proposal work can start now", strategy["next_steps"][0])
 
     def test_green_energy_strategy_does_not_leak_recycling_language(self) -> None:
         result = {

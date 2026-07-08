@@ -19,7 +19,7 @@ python -m pip install -r requirements.txt
 
 ## First semantic health check
 
-Run this after installation and before the first feedback session:
+Run this after installation and before the first use on a new machine:
 
 ```powershell
 python scripts/check_semantic_stack.py
@@ -43,7 +43,7 @@ Recommended first session:
 
 ## Share as a web app
 
-The preferred Gillis feedback path is a Streamlit Community Cloud link, with ZIP/local delivery kept as backup.
+The preferred delivery path is a Streamlit Community Cloud link, with ZIP/local delivery kept as backup.
 
 Deploy from GitHub with:
 
@@ -59,6 +59,8 @@ The first semantic matching run on Streamlit Cloud can be slower while the model
 ## Client and internal modes
 
 The application starts in client mode by default. Client mode hides raw dataset tables, reload controls, and maintenance tools.
+
+For link-based access, you can optionally protect the app with a simple access code. Set either `EU_FUNDING_ACCESS_CODE` or `access_code` in Streamlit secrets. If no access code is configured, the app opens normally; there is no hard-coded password in the repository.
 
 For local dataset maintenance, start Streamlit with internal mode explicitly enabled:
 
@@ -80,7 +82,7 @@ Initialize and import the current working call library:
 
 ```powershell
 python scripts/init_db.py
-python scripts/import_calls.py
+python scripts/import_calls.py --replace
 ```
 
 Audit the main CSV:
@@ -89,25 +91,77 @@ Audit the main CSV:
 python scripts/audit_dataset.py
 ```
 
-To discover possible additions from the official EU Funding & Tenders Search API:
+For permanent dataset refreshes, use the GitHub Actions workflow:
+
+- GitHub -> **Actions** -> **EU Call Library Refresh** -> **Run workflow**
+- Keep `target_active` at `300` for the normal working library.
+- Review and merge the pull request only after checking the dataset diff and QA result.
+
+This is the preferred path for the hosted Streamlit app because the refreshed CSV and SQLite files are committed through GitHub. A local Streamlit runtime update may not persist after reboot.
+
+For local admin maintenance, run the same refresh pipeline with one command:
 
 ```powershell
-python scripts/expand_dataset_from_eu_api.py --dry-run
-python scripts/expand_dataset_from_eu_api.py --write-staging --write-recommended
+python scripts/refresh_call_library.py --target-active 300 --skip-live-api --apply --qa full
 ```
 
-The expansion script creates staging and review files. It does **not** automatically modify the curated CSV or SQLite database. New records must be reviewed, enriched only from official evidence, backed up, audited, and explicitly promoted before import.
+To preview the refresh without modifying the main CSV or SQLite:
+
+```powershell
+python scripts/refresh_call_library.py --target-active 300 --skip-live-api --qa none
+```
+
+The refresh pipeline fetches official EU records, creates staging and candidate files, enriches only explicitly supported metadata, removes expired calls from the active library, rebuilds SQLite, and writes backups before applying local changes. See [`docs/monthly_dataset_operations.md`](docs/monthly_dataset_operations.md).
+
+After each refresh, the workflow also runs the saved Gillis watchlist in [`data/watchlist/gillis_watchlist.json`](data/watchlist/gillis_watchlist.json). The pull request includes a short report showing which tracked themes gained new reviewable calls.
+
+To run that report locally:
+
+```powershell
+python scripts/run_watchlist_report.py --previous-csv data/evaluation_outputs/calls_seed_clean_before_refresh.csv
+```
+
+To enrich priority active calls already in the working library without changing the main dataset:
+
+```powershell
+python scripts/enrich_priority_call_metadata.py --limit 40
+```
+
+This writes `data/imports/calls_seed_priority_enriched_candidates.csv` and `data/evaluation_outputs/priority_call_metadata_enrichment_log.json`. It is intended for official-evidence review before any later promotion.
+
+In internal mode, the app also includes dataset refresh and staging review panels. The refresh panel can preview or apply the local refresh pipeline, while the review panel lets a maintainer inspect staging or promotion-candidate files, mark records as `approve`, `hold`, or `reject`, and write:
+
+- `data/imports/eu_calls_approved_promotion.csv`
+- `data/evaluation_outputs/eu_calls_approval_log.json`
+
+This approval export still does not update `calls_seed_clean.csv` or `data/eu_funding.sqlite` by itself. Permanent hosted updates should go through the GitHub Actions pull request flow.
+
+## Practical screening support
+
+Result details now include lightweight support layers for the first strategic steps after a match:
+
+- Partner needs to check: suggested partner roles and outreach focus, based only on the project and call text.
+- Optional curated partner-directory matching when `data/imports/partner_directory.csv` is configured.
+- Concept note starter: a call-fit angle, proposal structure, missing information to clarify, and evidence to collect before proposal drafting.
+- Proposal readiness memo: strongest starting points, gaps to close, and first preparation actions.
+
+These are drafting aids, not eligibility confirmation. LLM-based proposal generation is intentionally not enabled until API-key handling, privacy expectations, and source-grounding rules are agreed.
+
+For partner-directory setup, see [`docs/partner_directory.md`](docs/partner_directory.md).
 
 ## Current dataset status
 
-As of June 15, 2026:
+As of July 6, 2026:
 
-- 100 records in the working call library
-- 85 active or upcoming calls shown by default
-- 15 expired records retained as historical data and hidden by default
+- 275 records in the working call library
+- 275 active or upcoming calls available for default screening
+- Standard refresh target: up to 300 active or upcoming calls, depending on official API availability and quality filters
+- Expired records are removed from the active library and archived during promotion
 - Semantic matching verified in the current environment
 - Theme and input-quality guardrails enabled
 - Client-facing port/harbour display prioritisation enabled for explicit port-side projects
+- Deadline tracking highlights active calls closing within 90 days
+- Monthly dataset refresh workflow available through GitHub Actions
 
 Call details should still be checked against official EU documents before proposal decisions.
 
@@ -127,8 +181,10 @@ python -m unittest discover -s tests
 python scripts/run_gillis_retrieval_quality_audit.py
 ```
 
-## Giving feedback
+## Operational review
 
-Use [`docs/gillis_feedback_questions.md`](docs/gillis_feedback_questions.md) during testing. Capture the project input, useful and irrelevant results, missing opportunity areas, explanation quality, status clarity, and PDF usefulness. Specific examples are more valuable than general impressions.
+Use [`docs/client_review_questions.md`](docs/client_review_questions.md) during review sessions. Capture the project input, useful and irrelevant results, missing opportunity areas, explanation quality, status clarity, and PDF usefulness. Specific examples are more valuable than general impressions.
 
 For a repeatable delivery check, follow [`docs/release_checklist.md`](docs/release_checklist.md).
+
+For the recommended long-term build order, see [`docs/product_evolution_plan.md`](docs/product_evolution_plan.md).

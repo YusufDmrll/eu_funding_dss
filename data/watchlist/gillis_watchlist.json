@@ -1,0 +1,79 @@
+[
+  {
+    "id": "critical-materials-recycling",
+    "title": "Critical raw materials recovery and recycling",
+    "theme": "critical materials / circularity",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A European industrial project to recover rare earth elements, battery materials, and other critical raw materials from industrial waste, end-of-life products, and recycling streams. The project focuses on secondary raw-material supply, recovery quality, materials processing, traceability, circularity, and reduced dependency on imported strategic materials.",
+    "notes": "Use for rare earth, battery-material recovery, secondary raw materials, recycling, refining, and dependency-reduction opportunities."
+  },
+  {
+    "id": "port-shore-power-green-harbour",
+    "title": "Port shore power and green harbour infrastructure",
+    "theme": "ports / green energy",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A port energy project for European harbour authorities, terminal operators, and maritime infrastructure partners. The solution coordinates shore power, renewable electricity, battery storage, berth energy demand, grid readiness, and emissions reduction for vessels at berth and port operations.",
+    "notes": "Use for shore power, green harbour, port energy systems, berth electrification, and terminal infrastructure opportunities."
+  },
+  {
+    "id": "hydrogen-industrial-port-clusters",
+    "title": "Hydrogen infrastructure for industrial port clusters",
+    "theme": "hydrogen / industrial decarbonisation",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A green hydrogen infrastructure project for industrial port clusters. The project links renewable electricity, hydrogen production, storage, distribution, logistics, and industrial users to decarbonise heavy transport, port activity, and energy-intensive industrial demand.",
+    "notes": "Use for hydrogen production, storage, distribution, port clusters, heavy transport decarbonisation, and industrial energy use."
+  },
+  {
+    "id": "maritime-logistics-optimisation",
+    "title": "Maritime logistics and port operations optimisation",
+    "theme": "maritime / logistics",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A digital optimisation project for ports, vessel operators, freight terminals, shipping companies, and logistics providers. The platform improves vessel scheduling, cargo-flow coordination, multimodal connections, supply-chain resilience, waiting times, fuel use, and emissions in maritime freight operations.",
+    "notes": "Use for maritime freight, port operations, shipping logistics, multimodal transport, and supply-chain resilience opportunities."
+  },
+  {
+    "id": "critical-infrastructure-security",
+    "title": "Critical infrastructure security and resilience",
+    "theme": "security / resilience",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A security and resilience project for critical infrastructure operators, including ports, logistics networks, energy assets, and industrial facilities. The solution uses monitoring, sensor fusion, cyber-physical risk assessment, anomaly detection, emergency preparedness, and public-private coordination to protect essential services.",
+    "notes": "Use for critical infrastructure protection, port security, resilience, cyber-physical threats, and emergency preparedness opportunities."
+  },
+  {
+    "id": "sme-cleantech-scaleup-support",
+    "title": "Clean-technology SME and start-up scale-up support",
+    "theme": "SME / start-up innovation",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "A cross-border support programme for clean-technology SMEs, start-ups, and industrial scale-ups that need pilot customers, demonstration partners, investment readiness, market-entry support, and access to manufacturers, ports, energy operators, and regional innovation organisations.",
+    "notes": "Use cautiously: the system should prefer calls that explicitly support SMEs, start-ups, scale-ups, demonstration, market uptake, or innovation ecosystems."
+  },
+  {
+    "id": "industrial-green-energy-efficiency",
+    "title": "Industrial green energy and energy-efficiency transition",
+    "theme": "green energy / industrial decarbonisation",
+    "country": "Netherlands",
+    "organisation_type": "SME",
+    "trl": null,
+    "has_consortium": false,
+    "project_description": "An industrial green-energy project for SMEs and manufacturing sites. The solution improves renewable energy integration, energy efficiency, storage readiness, grid flexibility, emissions reduction, operational sustainability, and decarbonisation of industrial production processes.",
+    "notes": "Use for renewable integration, industrial energy efficiency, storage, grid readiness, and manufacturing decarbonisation opportunities."
+  }
+]

@@ -1,3 +1,4 @@
+import argparse
 import json
 import re
 from datetime import date, datetime, timezone
@@ -76,6 +77,7 @@ def _issue(row_number: int, row: pd.Series, **details: Any) -> dict[str, Any]:
 
 
 def audit_dataset(csv_path: Path = CSV_PATH, today: date | datetime | None = None) -> dict[str, Any]:
+    csv_path = csv_path.resolve()
     dataframe = pd.read_csv(
         csv_path,
         sep=";",
@@ -162,8 +164,13 @@ def audit_dataset(csv_path: Path = CSV_PATH, today: date | datetime | None = Non
     reference_date = reference.date() if isinstance(reference, datetime) else reference
     counts = {name: len(rows) for name, rows in issues.items()}
 
+    try:
+        source_file = str(csv_path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        source_file = str(csv_path)
+
     return {
-        "source_file": str(csv_path.relative_to(PROJECT_ROOT)),
+        "source_file": source_file,
         "audit_date": reference_date.isoformat(),
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_rows": int(len(dataframe)),
@@ -246,9 +253,14 @@ def print_terminal_summary(
 
 
 def main() -> None:
-    report = audit_dataset()
-    write_json_report(report)
-    print_terminal_summary(report, REPORT_PATH)
+    parser = argparse.ArgumentParser(description="Audit an EU Funding Match CSV file.")
+    parser.add_argument("csv_path", nargs="?", type=Path, default=CSV_PATH)
+    parser.add_argument("--output", type=Path, default=REPORT_PATH)
+    args = parser.parse_args()
+
+    report = audit_dataset(args.csv_path)
+    write_json_report(report, args.output)
+    print_terminal_summary(report, args.output)
 
 
 if __name__ == "__main__":

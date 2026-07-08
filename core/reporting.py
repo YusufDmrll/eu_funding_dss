@@ -6,14 +6,14 @@ from typing import Any, Dict, List
 
 from core.client_experience import build_call_strategy, build_review_status_reason, build_theme_aware_caution
 from core.deadlines import (
-    EXPIRED,
-    INVALID_DEADLINE,
     OPEN_OR_UPCOMING,
-    UNKNOWN_DEADLINE,
+    build_deadline_urgency,
     classify_deadline,
 )
 from core.explanations import DEFAULT_MATCH_EXPLANATION
+from core.grant_assistant import build_concept_note_starter, build_proposal_readiness_memo
 from core.input_quality import evaluate_project_description
+from core.partner_matching import build_partner_guidance
 from core.scoring import determine_client_review_status
 from core.source_urls import canonical_official_topic_url, official_source_label
 
@@ -92,20 +92,8 @@ def _format_programme_cluster(result: Dict[str, Any]) -> str:
 
 
 def _format_deadline_status(result: Dict[str, Any]) -> str:
-    deadline_value = result.get("deadline_utc")
-    status = result.get("deadline_status") or classify_deadline(deadline_value)
-    deadline = _parse_deadline(deadline_value)
-    date_text = deadline.strftime("%d %b %Y") if deadline else ""
-
-    if status == OPEN_OR_UPCOMING:
-        return f"Open or upcoming - {date_text}" if date_text else "Open or upcoming"
-    if status == EXPIRED:
-        return f"Expired - {date_text}" if date_text else "Expired"
-    if status == UNKNOWN_DEADLINE:
-        return "Deadline not listed - check the official source"
-    if status == INVALID_DEADLINE:
-        return "Deadline needs confirmation on the official source"
-    return "Deadline needs confirmation on the official source"
+    urgency = build_deadline_urgency(result.get("deadline_utc"))
+    return f"{urgency['label']} - {urgency['detail']}"
 
 
 def _format_trl_alignment(result: Dict[str, Any]) -> str | None:
@@ -145,6 +133,18 @@ def _safe_markup(value: Any) -> str:
     return html.escape(str(value or ""), quote=True)
 
 
+def _join_inline_items(items: List[Any], limit: int | None = None) -> str:
+    """Join short memo items without leaking mechanical punctuation like '.;'."""
+    selected = items[:limit] if limit is not None else items
+    cleaned = []
+    for item in selected:
+        text = re.sub(r"\s+", " ", str(item or "").strip())
+        text = re.sub(r"[\s.;,]+$", "", text)
+        if text:
+            cleaned.append(text)
+    return "; ".join(cleaned)
+
+
 def _format_review_status(result: Dict[str, Any], project_inputs: Dict[str, Any]) -> str:
     input_quality = project_inputs.get("input_quality") or evaluate_project_description(
         str(project_inputs.get("project_desc") or "")
@@ -182,7 +182,6 @@ def _build_primary_caution(result: Dict[str, Any]) -> str | None:
     data_quality_flags = result.get("data_quality_flags") or []
     trl_alignment = (result.get("strategic_success_components") or {}).get("trl_alignment", 100.0)
     result_text = _build_result_text(result)
-    deadline = _parse_deadline(result.get("deadline_utc"))
     generic_eligibility_issue = any(
         term in " ".join([str(item).lower() for item in reasons + warnings + data_quality_flags])
         for term in ["country", "organisation", "eligible countries", "metadata"]
@@ -264,10 +263,11 @@ def _build_primary_caution(result: Dict[str, Any]) -> str | None:
     if trl_alignment < 100:
         return "The thematic fit looks stronger than the current TRL alignment."
 
-    if deadline is not None:
-        now = datetime.now(deadline.tzinfo)
-        if 0 <= (deadline - now).days <= 120:
-            return "This call may need near-term shortlisting if you decide to pursue it."
+    deadline_urgency = build_deadline_urgency(result.get("deadline_utc"))
+    if deadline_urgency.get("urgency") in {"urgent", "closing_soon"}:
+        return "The deadline is close; only shortlist this if the team can act quickly."
+    if deadline_urgency.get("urgency") == "review_timing":
+        return "The deadline is not immediate, but a go/no-go decision should be planned before deeper proposal work."
 
     if generic_eligibility_issue:
         return "Eligibility conditions should still be confirmed on the official call page."
@@ -462,6 +462,77 @@ def _build_shortlist_count_text(
     return f"{count} current options found."
 
 
+def _status_counts(results: List[Dict[str, Any]], project_inputs: Dict[str, Any]) -> Dict[str, int]:
+    statuses = [_format_review_status(result, project_inputs) for result in results]
+    return {
+        "Strong match": statuses.count("Strong match"),
+        "Worth reviewing": statuses.count("Worth reviewing"),
+        "Needs more detail": statuses.count("Needs more detail"),
+    }
+
+
+def _format_status_mix(counts: Dict[str, int]) -> str:
+    parts = []
+    if counts.get("Strong match"):
+        parts.append(f"{counts['Strong match']} strong match")
+    if counts.get("Worth reviewing"):
+        parts.append(f"{counts['Worth reviewing']} worth reviewing")
+    if counts.get("Needs more detail"):
+        parts.append(f"{counts['Needs more detail']} needing more detail")
+    return ", ".join(parts) if parts else "No current options"
+
+
+def _build_recommended_use(results: List[Dict[str, Any]], project_inputs: Dict[str, Any]) -> str:
+    if not results:
+        return "No action memo is available because no active calls were exported."
+
+    counts = _status_counts(results, project_inputs)
+    top_status = _format_review_status(results[0], project_inputs)
+    if counts["Strong match"] >= 1 and top_status == "Strong match":
+        return "Use the top result for focused call-scope review, then compare the remaining options as alternatives or adjacent routes."
+    if counts["Worth reviewing"] >= 1:
+        return "Use this as a research shortlist: review the strongest option first, but validate scope before proposal planning."
+    return "Use this only as an orientation view; add more project detail before treating any call as a proposal candidate."
+
+
+def _build_immediate_action(results: List[Dict[str, Any]], project_inputs: Dict[str, Any]) -> str:
+    if not results:
+        return "Refine the project description and run a new screening."
+    strategy = build_call_strategy(results[0], project_inputs)
+    if strategy["next_steps"]:
+        return strategy["next_steps"][0]
+    return _select_primary_next_step(results[0]) or "Open the official topic page and check scope, eligibility, deadline, and consortium conditions."
+
+
+def _build_proposal_preparation_focus(results: List[Dict[str, Any]], project_inputs: Dict[str, Any]) -> str:
+    if not results:
+        return "Add more project detail before proposal preparation."
+    memo = build_proposal_readiness_memo(results[0], project_inputs)
+    focus_items = memo.get("main_gaps") or memo.get("first_actions") or []
+    if focus_items:
+        return _join_inline_items(focus_items, 2)
+    return "Prepare a one-page concept note mapped directly to the top call scope."
+
+
+def _build_action_memo_items(
+    results: List[Dict[str, Any]],
+    project_inputs: Dict[str, Any],
+) -> list[tuple[str, str]]:
+    counts = _status_counts(results, project_inputs) if results else {
+        "Strong match": 0,
+        "Worth reviewing": 0,
+        "Needs more detail": 0,
+    }
+    return [
+        ("Recommended use", _build_recommended_use(results, project_inputs)),
+        ("Shortlist composition", _format_status_mix(counts)),
+        ("Main opportunity area", _detect_result_theme(results[0]) if results else "Not available"),
+        ("Immediate action", _build_immediate_action(results, project_inputs)),
+        ("Before proposal work", _build_proposal_preparation_focus(results, project_inputs)),
+        ("Primary caution", _build_shortlist_caution(results, project_inputs)),
+    ]
+
+
 def _build_summary_lead(results: List[Dict[str, Any]]) -> str:
     if not results:
         return "No shortlist is currently available."
@@ -504,8 +575,16 @@ def _build_plain_text_pdf(project_inputs: Dict[str, Any], results: List[Dict[str
         DATASET_NOTE,
         SCORE_NOTE,
         "",
-        "Call Shortlist",
+        "Action Memo",
     ]
+    for label, value in _build_action_memo_items(active_results, project_inputs):
+        lines.append(f"{label}: {value}")
+    lines.extend(
+        [
+            "",
+            "Call Shortlist",
+        ]
+    )
     if str(project_inputs.get("project_title") or "").strip():
         lines.insert(4, f"Project Title: {_format_value(project_inputs.get('project_title'))}")
 
@@ -523,6 +602,9 @@ def _build_plain_text_pdf(project_inputs: Dict[str, Any], results: List[Dict[str
             input_quality=input_quality,
         )
         strategy = build_call_strategy(result, project_inputs)
+        partner_guidance = build_partner_guidance(result, project_inputs)
+        concept_note = build_concept_note_starter(result, project_inputs)
+        readiness_memo = build_proposal_readiness_memo(result, project_inputs)
         lines.extend(
             [
                 "",
@@ -548,9 +630,50 @@ def _build_plain_text_pdf(project_inputs: Dict[str, Any], results: List[Dict[str
         if primary_caution:
             lines.append(f"Main Caution: {_format_value(primary_caution)}")
         if strategy["clarifications"]:
-            lines.append(f"What To Clarify: {'; '.join(strategy['clarifications'])}")
+            lines.append(f"What To Clarify: {_join_inline_items(strategy['clarifications'])}")
         for step_index, item in enumerate(strategy["next_steps"][:3], start=1):
             lines.append(f"Next Step {step_index}: {item}")
+        if partner_guidance["summary"]:
+            lines.append(f"Partner Setup To Verify: {partner_guidance['summary']}")
+        if partner_guidance.get("outreach_focus"):
+            lines.append(f"First Outreach Step: {partner_guidance['outreach_focus']}")
+        if partner_guidance.get("outreach_rationale"):
+            lines.append(f"Why These Roles Matter: {partner_guidance['outreach_rationale']}")
+        primary_roles = partner_guidance.get("primary_roles") or []
+        if primary_roles:
+            role_text = [
+                f"{role.get('label')}: {role.get('reason')}"
+                for role in primary_roles[:2]
+                if role.get("label")
+            ]
+            lines.append(f"Priority Partner Roles: {_join_inline_items(role_text)}")
+        directory_suggestions = partner_guidance.get("directory_suggestions") or {}
+        directory_matches = directory_suggestions.get("matches") or []
+        search_profile = directory_suggestions.get("search_profile") or {}
+        if directory_matches:
+            lines.append(
+                "Curated Partner Directory Matches: "
+                + "; ".join(match.get("organization_name", "") for match in directory_matches[:3])
+            )
+        elif search_profile.get("roles") or search_profile.get("themes"):
+            profile_parts = []
+            if search_profile.get("roles"):
+                profile_parts.append("roles: " + ", ".join(search_profile["roles"][:4]))
+            if search_profile.get("themes"):
+                profile_parts.append("themes: " + ", ".join(search_profile["themes"][:4]))
+            lines.append("Partner Search Profile: " + "; ".join(profile_parts))
+        if concept_note["call_fit_angle"]:
+            lines.append(f"Proposal Preparation Focus: {concept_note['call_fit_angle']}")
+        if readiness_memo.get("preparation_focus"):
+            lines.append(f"Preparation Focus Items: {_join_inline_items(readiness_memo['preparation_focus'], 3)}")
+        if readiness_memo["readiness_level"]:
+            lines.append(f"Proposal Readiness: {readiness_memo['readiness_level']} - {readiness_memo['summary']}")
+        if readiness_memo["main_gaps"]:
+            lines.append(f"Before Proposal Work: {_join_inline_items(readiness_memo['main_gaps'], 3)}")
+        if readiness_memo["first_actions"]:
+            lines.append(
+                f"First Preparation Actions: {_join_inline_items(readiness_memo['first_actions'], 3)}"
+            )
         if result.get("source_url"):
             official_url = canonical_official_topic_url(result.get("call_id"), result.get("source_url"))
             lines.append(f"Official Source: {official_url}")
@@ -761,6 +884,36 @@ def _build_note_table(text: str, report_styles: Dict[str, Any]) -> Table:
     return table
 
 
+def _build_action_memo_table(
+    results: List[Dict[str, Any]],
+    project_inputs: Dict[str, Any],
+    report_styles: Dict[str, Any],
+) -> Table:
+    rows = [
+        [
+            Paragraph(_safe_markup(label), report_styles["detail_label"]),
+            Paragraph(_safe_markup(value), report_styles["detail_value"]),
+        ]
+        for label, value in _build_action_memo_items(results, project_inputs)
+    ]
+    table = Table(rows, colWidths=[42 * mm, 128 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FBFCFE")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D7DEE8")),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.35, colors.HexColor("#E3E8EF")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
 def _build_call_section(
     result: Dict[str, Any],
     index: int,
@@ -778,6 +931,9 @@ def _build_call_section(
         input_quality=input_quality,
     )
     strategy = build_call_strategy(result, project_inputs)
+    partner_guidance = build_partner_guidance(result, project_inputs)
+    concept_note = build_concept_note_starter(result, project_inputs)
+    readiness_memo = build_proposal_readiness_memo(result, project_inputs)
     header = Table(
         [[
             Paragraph(f"{index}. {_safe_markup(title)}", report_styles["call_title"]),
@@ -867,7 +1023,7 @@ def _build_call_section(
             [
                 Paragraph("What to clarify", report_styles["detail_label"]),
                 Paragraph(
-                    _safe_markup("; ".join(strategy["clarifications"])),
+                    _safe_markup(_join_inline_items(strategy["clarifications"])),
                     report_styles["detail_value"],
                 ),
             ]
@@ -882,6 +1038,80 @@ def _build_call_section(
             [
                 Paragraph("Next steps for this call", report_styles["detail_label"]),
                 Paragraph(steps_text, report_styles["detail_value"]),
+            ]
+        )
+
+    if partner_guidance["summary"]:
+        partner_text = _safe_markup(partner_guidance["summary"])
+        if partner_guidance.get("outreach_focus"):
+            partner_text += "<br/><b>First outreach step:</b> " + _safe_markup(
+                partner_guidance["outreach_focus"]
+            )
+        if partner_guidance.get("outreach_rationale"):
+            partner_text += "<br/><b>Why these roles matter:</b> " + _safe_markup(
+                partner_guidance["outreach_rationale"]
+            )
+        primary_roles = partner_guidance.get("primary_roles") or []
+        if primary_roles:
+            partner_text += "<br/>" + "<br/>".join(
+                f"- <b>{_safe_markup(role.get('label'))}:</b> {_safe_markup(role.get('reason'))}"
+                for role in primary_roles[:2]
+                if role.get("label")
+            )
+        directory_suggestions = partner_guidance.get("directory_suggestions") or {}
+        directory_matches = directory_suggestions.get("matches") or []
+        search_profile = directory_suggestions.get("search_profile") or {}
+        if directory_matches:
+            partner_text += "<br/><b>Curated partner-directory matches:</b> " + _safe_markup(
+                "; ".join(match.get("organization_name", "") for match in directory_matches[:3])
+            )
+        elif search_profile.get("roles") or search_profile.get("themes"):
+            profile_parts = []
+            if search_profile.get("roles"):
+                profile_parts.append("roles: " + ", ".join(search_profile["roles"][:4]))
+            if search_profile.get("themes"):
+                profile_parts.append("themes: " + ", ".join(search_profile["themes"][:4]))
+            partner_text += "<br/><b>Partner search profile:</b> " + _safe_markup("; ".join(profile_parts))
+        detail_rows.append(
+            [
+                Paragraph("Partner setup to verify", report_styles["detail_label"]),
+                Paragraph(partner_text, report_styles["detail_value"]),
+            ]
+        )
+
+    if readiness_memo["readiness_level"]:
+        readiness_text = (
+            f"<b>{_safe_markup(readiness_memo['readiness_level'])}:</b> "
+            f"{_safe_markup(readiness_memo['summary'])}"
+        )
+        if concept_note["call_fit_angle"]:
+            readiness_text += "<br/><b>Call-fit angle:</b> " + _safe_markup(
+                concept_note["call_fit_angle"]
+            )
+        if readiness_memo.get("preparation_focus"):
+            readiness_text += "<br/><b>Preparation focus:</b> " + _safe_markup(
+                _join_inline_items(readiness_memo["preparation_focus"], 3)
+            )
+        if concept_note.get("evidence_to_collect"):
+            readiness_text += "<br/><b>Evidence to collect:</b> " + _safe_markup(
+                _join_inline_items(concept_note["evidence_to_collect"], 3)
+            )
+        if readiness_memo["strongest_starting_points"]:
+            readiness_text += "<br/><b>Strongest starting points:</b> " + _safe_markup(
+                _join_inline_items(readiness_memo["strongest_starting_points"], 3)
+            )
+        if readiness_memo["main_gaps"]:
+            readiness_text += "<br/><b>Before proposal work:</b> " + _safe_markup(
+                _join_inline_items(readiness_memo["main_gaps"], 3)
+            )
+        if readiness_memo["first_actions"]:
+            readiness_text += "<br/><b>First preparation actions:</b> " + _safe_markup(
+                _join_inline_items(readiness_memo["first_actions"], 3)
+            )
+        detail_rows.append(
+            [
+                Paragraph("Proposal focus", report_styles["detail_label"]),
+                Paragraph(readiness_text, report_styles["detail_value"]),
             ]
         )
 
@@ -1155,7 +1385,11 @@ def build_decision_support_pdf(
     story.append(_build_note_table(DATASET_NOTE, report_styles))
     story.append(Spacer(1, 5))
     story.append(_build_note_table(SCORE_NOTE, report_styles))
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Action memo", report_styles["section"]))
+    story.append(_build_action_memo_table(active_results, project_inputs, report_styles))
+    story.append(Spacer(1, 12))
 
     if active_results:
         story.extend(_build_screening_readout(active_results, report_styles, project_inputs))

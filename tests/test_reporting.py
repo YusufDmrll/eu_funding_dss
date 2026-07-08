@@ -2,16 +2,87 @@ import unittest
 
 from core.reporting import (
     _active_results,
+    _build_action_memo_items,
     _build_plain_text_pdf,
     _build_primary_caution,
     _build_shortlist_count_text,
+    _format_deadline_status,
     _format_review_status,
+    _join_inline_items,
     build_decision_support_pdf,
 )
 from core.source_urls import canonical_official_topic_url, official_source_label
 
 
 class ReportingTests(unittest.TestCase):
+    def test_action_memo_summarises_use_and_next_action(self) -> None:
+        results = [
+            {
+                "call_id": "HE-STRONG",
+                "call_title": "Critical raw materials recycling",
+                "description": "Critical raw materials recycling and processing.",
+                "similarity_score": 0.62,
+                "match_confidence_label": "Reliable",
+                "strategic_success_index": 74,
+                "deadline_utc": "2099-01-01",
+                "eligibility_status": "Partially Eligible",
+                "next_step_guidance": ["Check official scope and expected outcomes."],
+                "theme_coherence": {"coherence_level": "strong", "shared_themes": ["critical_materials_circularity"]},
+            },
+            {
+                "call_id": "HE-REVIEW",
+                "call_title": "Adjacent recycling innovation",
+                "description": "Circularity and industrial innovation.",
+                "similarity_score": 0.22,
+                "match_confidence_label": "Needs Review",
+                "strategic_success_index": 48,
+                "deadline_utc": "2099-01-01",
+            },
+        ]
+        items = dict(
+            _build_action_memo_items(
+                results,
+                {
+                    "project_desc": "A detailed rare earth recycling process for European manufacturing.",
+                    "input_quality": {"quality_level": "detailed"},
+                    "retrieval_mode": "semantic",
+                },
+            )
+        )
+
+        self.assertIn("focused call-scope review", items["Recommended use"])
+        self.assertIn("strong match", items["Shortlist composition"])
+        self.assertIn("Critical raw materials", items["Main opportunity area"])
+        self.assertTrue(items["Immediate action"])
+
+    def test_inline_items_do_not_leak_mechanical_punctuation(self) -> None:
+        joined = _join_inline_items(
+            [
+                "Clarify whether the project is mainly recovery or value-chain capacity.",
+                "Consortium requirements are not confirmed in the available call details.",
+            ]
+        )
+
+        self.assertEqual(
+            joined,
+            "Clarify whether the project is mainly recovery or value-chain capacity; "
+            "Consortium requirements are not confirmed in the available call details",
+        )
+        self.assertNotIn(".;", joined)
+
+    def test_pdf_deadline_status_uses_actionable_urgency_wording(self) -> None:
+        status = _format_deadline_status({"deadline_utc": "2099-01-15"})
+
+        self.assertIn("Open or upcoming", status)
+
+        # Use the deadline helper directly for stable date-window coverage in unit tests.
+        from core.deadlines import build_deadline_urgency
+        from datetime import date
+
+        urgency = build_deadline_urgency("2026-07-01", date(2026, 6, 11))
+        self.assertEqual(urgency["label"], "Closing soon")
+        self.assertIn("Closes in 20 days", urgency["detail"])
+
     def test_battery_operation_call_does_not_receive_refining_caution(self):
         result = {
             "topic_title": "Enhanced electric operation and battery durability for waterborne transport",
@@ -160,8 +231,21 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("Organisation Type: SME", text)
         self.assertNotIn("pilot dataset", text.lower())
         self.assertNotIn("screening indicator", text.lower())
+        self.assertIn("Action Memo", text)
+        self.assertIn("Recommended use", text)
+        self.assertIn("Immediate action", text)
+        self.assertIn("Before Proposal Work", text)
         self.assertIn("HORIZON-CL5-2027-02-D2-05", text)
         self.assertIn("/topic-details/HORIZON-CL5-2027-02-D2-05", text)
+        self.assertIn("Partner Setup To Verify", text)
+        self.assertIn("First Outreach Step", text)
+        self.assertIn("Why These Roles Matter", text)
+        self.assertIn("Priority Partner Roles", text)
+        self.assertIn("Partner Search Profile", text)
+        self.assertIn("Proposal Preparation Focus", text)
+        self.assertIn("Preparation Focus Items", text)
+        self.assertIn("Proposal Readiness", text)
+        self.assertIn("Before Proposal Work", text)
 
     def test_shortlist_summary_does_not_oversell_mixed_statuses(self) -> None:
         results = [

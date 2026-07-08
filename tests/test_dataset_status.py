@@ -15,6 +15,13 @@ class DatasetStatusTests(unittest.TestCase):
                 "trl_max": 7,
             },
             {
+                "deadline_utc": "2026-07-01T15:00:00Z",
+                "eligible_countries": "EU member states",
+                "eligible_org_types": "SMEs",
+                "trl_min": 5,
+                "trl_max": 8,
+            },
+            {
                 "deadline_utc": "2025-01-01",
                 "eligible_countries": "",
                 "eligible_org_types": None,
@@ -39,8 +46,10 @@ class DatasetStatusTests(unittest.TestCase):
 
         status = calculate_dataset_status(records, today=date(2026, 6, 11))
 
-        self.assertEqual(status["total_records"], 4)
-        self.assertEqual(status["open_or_upcoming_records"], 1)
+        self.assertEqual(status["total_records"], 5)
+        self.assertEqual(status["open_or_upcoming_records"], 2)
+        self.assertEqual(status["closing_soon_records"], 1)
+        self.assertEqual(status["due_within_30_days_records"], 1)
         self.assertEqual(status["expired_records"], 1)
         self.assertEqual(status["unknown_deadline_records"], 1)
         self.assertEqual(status["invalid_deadline_records"], 1)

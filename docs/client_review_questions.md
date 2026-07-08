@@ -1,6 +1,6 @@
-# Gillis Feedback Questions
+# Client Review Questions
 
-Use these questions after testing several realistic project descriptions. Short notes and concrete examples are enough.
+Use these questions after running several realistic project descriptions. Short notes and concrete examples are enough.
 
 ## Match quality
 
@@ -38,7 +38,7 @@ Use these questions after testing several realistic project descriptions. Short 
 20. Which part would save the most time in repeated company use?
 21. What would prevent you from trusting or regularly using the current version?
 
-## Useful feedback format
+## Useful review format
 
 For each tested project, record:
 
@@ -47,5 +47,5 @@ For each tested project, record:
 - Irrelevant or questionable result
 - Missing funding area
 - Status or explanation concern
-- PDF feedback
+- PDF comments
 - Suggested improvement
